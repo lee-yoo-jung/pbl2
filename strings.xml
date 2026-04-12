@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">PBL2</string>
+
+    <string name="help">사용법</string>
+    <string name="settings">설정</string>
+    <string name="floating_button">플로팅 버튼</string>
+    <string name="help_message">도움 제공 멘트</string>
+    <string name="option3">옵션 3</string>
+    <string name="recent_questions">최근 질문(로그)</string>
+</resources>

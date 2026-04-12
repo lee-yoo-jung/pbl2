@@ -1,9 +1,13 @@
-package com.example.riskdetection
+package com.example.pbl2
 
+import android.app.Activity
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
@@ -16,11 +20,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import java.util.*
 
 @Composable
 fun SettingsScreen() {
+
+    val context = LocalContext.current
 
     var floatingOn by remember { mutableStateOf(true) }
     var helpOn by remember { mutableStateOf(false) }
@@ -29,7 +36,7 @@ fun SettingsScreen() {
     var expanded by remember { mutableStateOf(false) }
     var selectedLanguage by remember { mutableStateOf("한국어") }
 
-    val languages = listOf("한국어", "English", "中文", "日本語")
+    val languages = listOf("ko" to "한국어", "en" to "English")
 
     val purple = Color(0xFF6A5ACD)
 
@@ -40,40 +47,31 @@ fun SettingsScreen() {
             .padding(16.dp)
     ) {
 
+        // 상단
         Box(modifier = Modifier.fillMaxWidth()) {
 
-            // 사용법 버튼
             Row(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .background(purple, RoundedCornerShape(16.dp))
                     .clickable { }
-                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    Icons.Default.Help,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(2.dp))
-                Text(
-                    "사용법",
-                    color = Color.White,
-                    style = MaterialTheme.typography.bodySmall
-                )
+                Icon(Icons.Default.Help, contentDescription = null, tint = Color.White)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(stringResource(R.string.help), color = Color.White)
             }
 
             Text(
-                text = "APP 이름",
+                text = stringResource(R.string.app_name),
                 modifier = Modifier.align(Alignment.Center),
-                style = MaterialTheme.typography.headlineMedium
+                style = MaterialTheme.typography.titleLarge
             )
 
             Icon(
                 imageVector = Icons.Default.Settings,
-                contentDescription = "설정",
+                contentDescription = null,
                 modifier = Modifier.align(Alignment.CenterEnd)
             )
         }
@@ -81,9 +79,10 @@ fun SettingsScreen() {
         Spacer(modifier = Modifier.height(20.dp))
 
         // 언어 선택
-        Box(
-            modifier = Modifier.width(200.dp)
-        ) {
+        Box(modifier = Modifier.width(200.dp)) {
+
+            val currentLang = loadLanguage(context)
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -92,7 +91,9 @@ fun SettingsScreen() {
                     .padding(10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(selectedLanguage)
+                Text(
+                    if (currentLang == "ko") "한국어" else "English"
+                )
                 Text("▼")
             }
 
@@ -102,9 +103,13 @@ fun SettingsScreen() {
             ) {
                 languages.forEach { lang ->
                     DropdownMenuItem(
-                        text = { Text(lang) },
+                        text = { Text(lang.second) },
                         onClick = {
-                            selectedLanguage = lang
+                            saveLanguage(context, lang.first)
+                            setLocale(context, lang.first)
+
+                            (context as? Activity)?.recreate()
+
                             expanded = false
                         }
                     )
@@ -114,47 +119,30 @@ fun SettingsScreen() {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Settings, contentDescription = null)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    "설정",
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleLarge
-                )
-            }
+        // 설정
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Settings, contentDescription = null)
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(stringResource(R.string.settings), fontWeight = FontWeight.Bold)
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        SettingToggle("플로팅 버튼", floatingOn, purple) { floatingOn = it }
-        SettingToggle("도움 제공 멘트", helpOn, purple) { helpOn = it }
-        SettingToggle("옵션 3", optionOn, purple) { optionOn = it }
+        SettingToggle(stringResource(R.string.floating_button), floatingOn, purple) { floatingOn = it }
+        SettingToggle(stringResource(R.string.help_message), helpOn, purple) { helpOn = it }
+        SettingToggle(stringResource(R.string.option3), optionOn, purple) { optionOn = it }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Chat, contentDescription = null)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    "최근 질문(로그)",
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleLarge
-                )
-            }
+        // 최근 질문
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Chat, contentDescription = null)
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(stringResource(R.string.recent_questions), fontWeight = FontWeight.Bold)
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 임시 데이터
         val questionList = listOf(
             "질문 1" to "답변 1",
             "질문 2" to "답변 2",
@@ -166,8 +154,8 @@ fun SettingsScreen() {
             "질문 8" to "답변 8"
         )
 
-        questionList.forEach { (question, answer) ->
-            QuestionCard(question, answer)
+        questionList.forEach { (q, a) ->
+            QuestionCard(q, a)
         }
     }
 }
@@ -190,25 +178,14 @@ fun SettingToggle(
     ) {
         Text(title)
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-
-            Text("Off", color = Color.Gray)
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            Switch(
-                checked = checked,
-                onCheckedChange = onChange,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.White,
-                    checkedTrackColor = purple
-                )
+        Switch(
+            checked = checked,
+            onCheckedChange = onChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = purple
             )
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            Text("On", color = Color.Gray)
-        }
+        )
     }
 }
 
@@ -222,13 +199,30 @@ fun QuestionCard(question: String, answer: String) {
             .padding(12.dp)
     ) {
         Text(question, fontWeight = FontWeight.Bold)
-
         Spacer(modifier = Modifier.height(6.dp))
-
         Divider()
-
         Spacer(modifier = Modifier.height(6.dp))
-
         Text(answer)
     }
+}
+
+fun saveLanguage(context: Context, language: String) {
+    val prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+    prefs.edit().putString("language", language).apply()
+}
+
+fun loadLanguage(context: Context): String {
+    val prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+    return prefs.getString("language", "ko") ?: "ko"  // 기본값 한국어
+}
+
+// 언어 변경 함수
+fun setLocale(context: Context, language: String) {
+    val locale = Locale(language)
+    Locale.setDefault(locale)
+
+    val config = context.resources.configuration
+    config.setLocale(locale)
+
+    context.resources.updateConfiguration(config, context.resources.displayMetrics)
 }
