@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/menu_layout"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:padding="10dp">
+
+    <!-- 1번째 메뉴: 부분 해석 -->
+    <TextView
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:layout_marginBottom="15dp"
+        android:background="@drawable/circle_menu"
+        android:gravity="center"
+        android:text="부분\n해석"
+        android:textColor="#f5c32c"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:elevation="3dp"
+        android:lineSpacingExtra="4dp" />
+
+    <!-- 2번째 메뉴: 화면 요약 -->
+    <TextView
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:layout_marginBottom="15dp"
+        android:background="@drawable/circle_menu"
+        android:gravity="center"
+        android:text="화면\n요약"
+        android:textColor="#f5c32c"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:elevation="3dp"
+        android:lineSpacingExtra="4dp" />
+
+    <!-- 3번째 메뉴: 직접 질문 -->
+    <TextView
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:background="@drawable/circle_menu"
+        android:gravity="center"
+        android:text="직접\n질문"
+        android:textColor="#f5c32c"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:elevation="3dp"
+        android:lineSpacingExtra="4dp" />
+
+</LinearLayout>
