@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:padding="16dp">
+
+    <!-- 1. 부모 레이아웃: 가로폭을 320dp로 확장 -->
+    <LinearLayout
+        android:id="@+id/text_box_root"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/transparent"
+        android:orientation="vertical">
+
+        <!-- 추천 디자인: X 버튼을 박스 우측 상단에 '플로팅' 아이콘 형태로 배치 -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="0dp"
+            android:translationZ="10dp"> <!-- 박스보다 위에 보이게 설정 -->
+
+            <TextView
+                android:id="@+id/btn_close_text_box"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_alignParentEnd="true"
+                android:background="@null"
+                android:gravity="center"
+                android:text="✕"
+                android:textColor="#000000"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+        </RelativeLayout>
+
+        <!-- 2. 메뉴 1, 2번용 (모서리 둥근 회색 박스) -->
+        <TextView
+            android:id="@+id/content_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_box_rounded"
+            android:elevation="4dp"
+            android:gravity="center"
+            android:minHeight="120dp"
+            android:padding="20dp"
+            android:text="내용이 여기에 표시됩니다."
+            android:textColor="#333333"
+            android:textSize="16sp"
+            android:visibility="visible" />
+
+        <!-- 3. 메뉴 3번용 직접 질문 (모서리 둥근 회색 박스들) -->
+        <LinearLayout
+            android:id="@+id/button_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/btn_ask_question"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:background="@drawable/bg_box_rounded"
+                android:elevation="4dp"
+                android:gravity="center"
+                android:padding="20dp"
+                android:text="질문 하시겠습니까?"
+                android:textColor="#333333" />
+
+            <TextView
+                android:id="@+id/btn_view_history"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_box_rounded"
+                android:elevation="4dp"
+                android:gravity="center"
+                android:padding="20dp"
+                android:text="이전 질문을 보겠습니까?"
+                android:textColor="#333333" />
+        </LinearLayout>
+
+        <!-- 4. 추천 질문 (이미지 스타일 유지하되 간격 조정) -->
+        <LinearLayout
+            android:id="@+id/recommend_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                style="@style/RecommendButtonStyle"
+                android:text="담은 상품들이 어디에 있나요?" />
+
+            <TextView
+                style="@style/RecommendButtonStyle"
+                android:text="어떻게 쿠폰을 써서 결제하나요?" />
+
+            <TextView
+                style="@style/RecommendButtonStyle"
+                android:text="주문을 취소하고 싶어요" />
+        </LinearLayout>
+
+    </LinearLayout>
+</FrameLayout>

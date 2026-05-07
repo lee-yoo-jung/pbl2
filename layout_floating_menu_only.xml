@@ -9,13 +9,14 @@
 
     <!-- 1번째 메뉴: 부분 해석 -->
     <TextView
-        android:layout_width="80dp"
-        android:layout_height="80dp"
-        android:layout_marginBottom="15dp"
+        android:id="@+id/summarySection"
+        android:layout_width="75dp"
+        android:layout_height="75dp"
+        android:layout_marginBottom="10dp"
         android:background="@drawable/circle_menu"
         android:gravity="center"
         android:text="부분\n해석"
-        android:textColor="#f5c32c"
+        android:textColor="#FFFFFF"
         android:textSize="16sp"
         android:textStyle="bold"
         android:elevation="3dp"
@@ -23,13 +24,14 @@
 
     <!-- 2번째 메뉴: 화면 요약 -->
     <TextView
-        android:layout_width="80dp"
-        android:layout_height="80dp"
-        android:layout_marginBottom="15dp"
+        android:id="@+id/summaryAll"
+        android:layout_width="75dp"
+        android:layout_height="75dp"
+        android:layout_marginBottom="10dp"
         android:background="@drawable/circle_menu"
         android:gravity="center"
         android:text="화면\n요약"
-        android:textColor="#f5c32c"
+        android:textColor="#FFFFFF"
         android:textSize="16sp"
         android:textStyle="bold"
         android:elevation="3dp"
@@ -37,15 +39,29 @@
 
     <!-- 3번째 메뉴: 직접 질문 -->
     <TextView
-        android:layout_width="80dp"
-        android:layout_height="80dp"
+        android:layout_width="75dp"
+        android:layout_height="75dp"
+        android:layout_marginBottom="10dp"
         android:background="@drawable/circle_menu"
         android:gravity="center"
         android:text="직접\n질문"
-        android:textColor="#f5c32c"
+        android:textColor="#FFFFFF"
         android:textSize="16sp"
         android:textStyle="bold"
         android:elevation="3dp"
         android:lineSpacingExtra="4dp" />
+
+    <!-- 4번째 메뉴: 추천 질문 (새로 추가됨) -->
+    <TextView
+        android:layout_width="75dp"
+        android:layout_height="75dp"
+        android:background="@drawable/circle_menu"
+        android:elevation="3dp"
+        android:gravity="center"
+        android:lineSpacingExtra="4dp"
+        android:text="추천\n질문"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:textStyle="bold" />
 
 </LinearLayout>
