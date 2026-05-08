@@ -79,7 +79,7 @@
                 android:textColor="#333333" />
         </LinearLayout>
 
-        <!-- 4. 추천 질문 (이미지 스타일 유지하되 간격 조정) -->
+        <!-- 4. 추천 질문 -->
         <LinearLayout
             android:id="@+id/recommend_container"
             android:layout_width="match_parent"
@@ -88,16 +88,25 @@
             android:visibility="gone">
 
             <TextView
+                android:id="@+id/rec_q1"
                 style="@style/RecommendButtonStyle"
-                android:text="담은 상품들이 어디에 있나요?" />
+                android:text="질문 1" />
 
             <TextView
+                android:id="@+id/rec_q2"
                 style="@style/RecommendButtonStyle"
-                android:text="어떻게 쿠폰을 써서 결제하나요?" />
+                android:text="질문 2" />
 
             <TextView
+                android:id="@+id/rec_q3"
                 style="@style/RecommendButtonStyle"
-                android:text="주문을 취소하고 싶어요" />
+                android:text="질문 3" />
+
+            <TextView
+                android:id="@+id/rec_q4"
+                style="@style/RecommendButtonStyle"
+                android:text="질문 4"
+                android:visibility="gone" /> <!-- 기본적으로는 숨김 -->
         </LinearLayout>
 
     </LinearLayout>

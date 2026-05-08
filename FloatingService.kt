@@ -1,6 +1,6 @@
 //FloatingService.kt 수정사항
 //-onMenu()함수 for문
-//-showTextBox()함수
+//-showTextBox()함수 : 추천 질문 로직. 패키지명 가져오는 함수 정의 필요.
 
 package com.example.pbl2
 
@@ -164,11 +164,21 @@ class FloatingService : Service() {
         val menuLayout = menuView!!.findViewById<LinearLayout>(R.id.menu_layout)
         val isButtonOnRight = (buttonParams.x + buttonView.width / 2) > screenWidth / 2
 
+        // -----------메뉴 레이아웃 자체를 클릭하면 메뉴가 닫히도록 설정 (외부 클릭 대응용)-----------
+        menuLayout.setOnClickListener {
+            closeMenu()
+        }
+        //-------------------------------------------------------
+
         summaryAll = menuView!!.findViewById(R.id.summaryAll)
         summarySection = menuView!!.findViewById(R.id.summarySection)
 
         // 녹화 (전체 화면) 버튼
         summaryAll.setOnClickListener {
+            //------------------메뉴 닫기-------
+            closeMenu()
+            //--------------------
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // 안드로이드 13 이상
                 // 권한이 이미 허용됐는지 확인
                 if (ContextCompat.checkSelfPermission(
@@ -189,6 +199,10 @@ class FloatingService : Service() {
 
         // 녹화 (부분 화면) 버튼
         summarySection.setOnClickListener {
+            // ---------메뉴 닫기-----------
+            closeMenu()
+            //--------------------
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // 안드로이드 13 이상
                 // 권한이 이미 허용됐는지 확인
                 if (ContextCompat.checkSelfPermission(
@@ -209,22 +223,17 @@ class FloatingService : Service() {
 
         for (i in 0 until menuLayout.childCount) {
             val child = menuLayout.getChildAt(i)
-
             if (child.id == R.id.summaryAll||child.id==R.id.summarySection) continue
 
             //------------------------수정한 부분----------------------------
             child.setOnClickListener {
-                when (i) {
-                    2 -> { // '직접 질문' 메뉴
-                        showTextBox(mode = "ASK", shouldCloseMenu = false)
-                    }
-                    3 -> { // '추천 질문' 메뉴 (새로 추가됨)
-                        showTextBox(mode = "RECOMMEND", shouldCloseMenu = false)
-                    }
-                    else -> { // '부분 해석', '화면 요약' 등 일반 메뉴
-                        showTextBox(mode = "TEXT", shouldCloseMenu = true)
-                    }
+                // [수정] 모든 메뉴가 클릭 시 닫히도록 shouldCloseMenu = true로 통일
+                val mode = when (i) {
+                    2 -> "ASK"
+                    3 -> "RECOMMEND"
+                    else -> "TEXT"
                 }
+                showTextBox(mode = mode, shouldCloseMenu = true)
             }
             //------------------------수정한 부분----------------------------
 
@@ -300,9 +309,53 @@ class FloatingService : Service() {
         val contentText = textBoxView!!.findViewById<TextView>(R.id.content_text)
         val buttonContainer = textBoxView!!.findViewById<LinearLayout>(R.id.button_container)
 
-        // --------------코드 추가 : recommendContainer 변수, if문을 when(mode)로 변경---------------------------------------
         val recommendContainer = textBoxView!!.findViewById<LinearLayout>(R.id.recommend_container)
+        // --------------추천 질문 로직 코드 추가---------------------------------------------------------------------------
+        val q1 = textBoxView!!.findViewById<TextView>(R.id.rec_q1)
+        val q2 = textBoxView!!.findViewById<TextView>(R.id.rec_q2)
+        val q3 = textBoxView!!.findViewById<TextView>(R.id.rec_q3)
+        val q4 = textBoxView!!.findViewById<TextView>(R.id.rec_q4)
 
+        if (mode == "RECOMMEND") {
+            recommendContainer.visibility = View.VISIBLE
+
+            // 현재 앱의 패키지명을 가져오는 함수(임의로 이름 정함)
+            val pkg = getForegroundPackageName()
+
+            // 1. 배달 카테고리
+            if (pkg == "com.sampleapp" || pkg == "com.fineapp.yogiyo") {
+                q1.text = "음식이나 가게를 어떻게 검색하나요?"
+                q2.text = "담은 상품들이 어디에 있나요?"
+                q3.text = "어떻게 쿠폰을 써서 결제하나요?"
+                q4.text = "주문을 취소하고 싶어요."
+                q4.visibility = View.VISIBLE
+            }
+            // 2. 정부24
+            else if (pkg == "kr.go.minwon.m") {
+                q1.text = "전자증명서 출력 방법 (종이/다운로드)"
+                q2.text = "전자증명서 기관 제출 방법"
+                q3.text = "민원 신청 내역이 확인되지 않아요."
+                q4.text = "발급민원 저장 순서"
+                q4.visibility = View.VISIBLE
+            }
+            // 3. 교통 및 예매
+            else if (pkg == "com.korail.talk" || pkg == "kr.co.tmoney.tia") {
+                q1.text = "예매 날짜와 시간은 어디서 고르나요?"
+                q2.text = "좌석 선택과 예매는 어떻게 하나요?"
+                q3.text = "예매한 표를 보고 싶어요 (티켓함)"
+                q4.visibility = View.GONE // 질문이 3개이므로 4번째는 숨김
+            }
+            // 그 외 기본 질문
+            else {
+                q1.text = "이 화면의 주요 기능을 알려줘"
+                q2.text = "무엇을 누르면 되나요?"
+                q3.visibility = View.GONE
+                q4.visibility = View.GONE
+            }
+        }
+        //---------------------------------------------------------
+
+        // --------------코드 추가 : recommendContainer 변수, if문을 when(mode)로 변경---------------------------------------
         when (mode) {
             "ASK" -> {
                 contentText.visibility = View.GONE
