@@ -1,16 +1,10 @@
-//FloatingService.kt 수정사항
-//-onMenu()함수 for문
-//-showTextBox()함수 : 추천 질문 로직. 패키지명 가져오는 함수 정의 필요.
-
 package com.example.pbl2
 
 import android.annotation.SuppressLint
-import android.app.Activity.RESULT_OK
 import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Point
 import android.graphics.Rect
@@ -22,12 +16,9 @@ import android.provider.Settings
 import android.util.Log
 import android.view.*
 import android.view.animation.*
-import android.widget.Button
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.example.pbl2.access_ocr.CaptureActivity
 import com.example.pbl2.access_ocr.MyAccessibilityService
@@ -38,6 +29,23 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
+import retrofit2.Response
+import retrofit2.http.GET
+import retrofit2.http.Query
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+import android.speech.tts.TextToSpeech
+import java.util.Locale
+import android.widget.RelativeLayout
+import android.widget.ImageView
+import android.graphics.Bitmap
+import android.util.Base64
+import java.io.ByteArrayOutputStream
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.widget.EditText
+import android.os.Bundle
 
 class FloatingService : Service() {
     private var overlayView: View? = null
@@ -61,8 +69,31 @@ class FloatingService : Service() {
     private var screenHeight = 0
     private var lastCloseTime = 0L
 
+    private var tts: TextToSpeech? = null
+    private var lastTargetPackage: String = "" // 마지막으로 감지된 외부 앱 패키지명
+
     data class ClickRange(var start: Pair<Float, Float> = Pair(0f,0f),var end: Pair<Float, Float> = Pair(0f,0f))
     val clicks= ClickRange()
+    private val ocrResultReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val result = intent?.getStringExtra("result")
+            val coords = intent?.getStringExtra("coords") // 좌표값 문자열
+
+            if (result != null) {
+                Handler(Looper.getMainLooper()).post {
+                    // UI에는 답변 텍스트만 띄움
+                    showTextBox(mode = "TEXT", shouldCloseMenu = true, message = result)
+
+                    // 좌표값은 화면에 띄우지 않고 로그로만 남김
+                    if (coords != null) {
+                        Log.d("HIGHLIGHT_COORDS", "좌표: $coords")
+                    }
+                }
+            }
+        }
+    }
+
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     @SuppressLint("ClickableViewAccessibility")
@@ -146,6 +177,26 @@ class FloatingService : Service() {
                 return false
             }
         })
+
+        ContextCompat.registerReceiver(
+            this,
+            ocrResultReceiver,
+            IntentFilter("OCR_RESULT_ACTION"),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+
+        // TTS 초기화 및 한국어 설정
+        tts = TextToSpeech(this) { status ->
+
+            if (status == TextToSpeech.SUCCESS) {
+
+                tts?.language = Locale.KOREAN
+
+                tts?.setSpeechRate(0.8f)  // 속도 조절
+
+            }
+
+        }
     }
 
     private fun toggleMenu() {
@@ -164,21 +215,11 @@ class FloatingService : Service() {
         val menuLayout = menuView!!.findViewById<LinearLayout>(R.id.menu_layout)
         val isButtonOnRight = (buttonParams.x + buttonView.width / 2) > screenWidth / 2
 
-        // -----------메뉴 레이아웃 자체를 클릭하면 메뉴가 닫히도록 설정 (외부 클릭 대응용)-----------
-        menuLayout.setOnClickListener {
-            closeMenu()
-        }
-        //-------------------------------------------------------
-
         summaryAll = menuView!!.findViewById(R.id.summaryAll)
         summarySection = menuView!!.findViewById(R.id.summarySection)
 
         // 녹화 (전체 화면) 버튼
         summaryAll.setOnClickListener {
-            //------------------메뉴 닫기-------
-            closeMenu()
-            //--------------------
-
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // 안드로이드 13 이상
                 // 권한이 이미 허용됐는지 확인
                 if (ContextCompat.checkSelfPermission(
@@ -199,10 +240,6 @@ class FloatingService : Service() {
 
         // 녹화 (부분 화면) 버튼
         summarySection.setOnClickListener {
-            // ---------메뉴 닫기-----------
-            closeMenu()
-            //--------------------
-
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // 안드로이드 13 이상
                 // 권한이 이미 허용됐는지 확인
                 if (ContextCompat.checkSelfPermission(
@@ -223,11 +260,9 @@ class FloatingService : Service() {
 
         for (i in 0 until menuLayout.childCount) {
             val child = menuLayout.getChildAt(i)
-            if (child.id == R.id.summaryAll||child.id==R.id.summarySection) continue
+            if (child.id == R.id.summaryAll || child.id == R.id.summarySection) continue
 
-            //------------------------수정한 부분----------------------------
             child.setOnClickListener {
-                // [수정] 모든 메뉴가 클릭 시 닫히도록 shouldCloseMenu = true로 통일
                 val mode = when (i) {
                     2 -> "ASK"
                     3 -> "RECOMMEND"
@@ -235,15 +270,8 @@ class FloatingService : Service() {
                 }
                 showTextBox(mode = mode, shouldCloseMenu = true)
             }
-            //------------------------수정한 부분----------------------------
-
-
-            /* 기존코드
-            menuLayout.getChildAt(i).setOnClickListener {
-                showTextBox(true, false)
-            }
-            */
         }
+
 
         /* 기존 코드
         for (i in 0 until menuLayout.childCount) {
@@ -297,144 +325,283 @@ class FloatingService : Service() {
         Handler(Looper.getMainLooper()).post { startMenuAnimation(menuLayout, isButtonOnRight) }
     }
 
-
-    //--------------------------------------------------------------------------
-    //private fun showTextBox(...)에서 'showButtons: Boolean'을  'mode: String'으로 변경
-    private fun showTextBox(mode: String, shouldCloseMenu: Boolean) {
+    private fun showTextBox(mode: String, shouldCloseMenu: Boolean, message: String? = null) {
         if (shouldCloseMenu) closeMenu()
         closeTextBox()
 
         textBoxView = LayoutInflater.from(this).inflate(R.layout.layout_text_box, null)
 
+        val textContentLayout = textBoxView!!.findViewById<LinearLayout>(R.id.text_content_layout)
         val contentText = textBoxView!!.findViewById<TextView>(R.id.content_text)
+        val btnTtsPlay = textBoxView!!.findViewById<ImageView>(R.id.btn_tts_play)
         val buttonContainer = textBoxView!!.findViewById<LinearLayout>(R.id.button_container)
-
         val recommendContainer = textBoxView!!.findViewById<LinearLayout>(R.id.recommend_container)
-        // --------------추천 질문 로직 코드 추가---------------------------------------------------------------------------
+
+        // 추천 질문 텍스트뷰 연결
         val q1 = textBoxView!!.findViewById<TextView>(R.id.rec_q1)
         val q2 = textBoxView!!.findViewById<TextView>(R.id.rec_q2)
         val q3 = textBoxView!!.findViewById<TextView>(R.id.rec_q3)
         val q4 = textBoxView!!.findViewById<TextView>(R.id.rec_q4)
 
+        // 텍스트 채우기 및 TTS 재생
+        if (message != null) {
+            contentText.text = message.trim()
+        }
+
+        btnTtsPlay?.setOnClickListener {
+            if (message != null) {
+                tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "TTS_ID")
+            }
+        }
+
+        // 추천 질문(RECOMMEND) 내용 세팅
         if (mode == "RECOMMEND") {
             recommendContainer.visibility = View.VISIBLE
 
-            // 현재 앱의 패키지명을 가져오는 함수(임의로 이름 정함)
-            val pkg = getForegroundPackageName()
+            // 임의의 함수 대신 접근성 서비스로 진짜 현재 앱 패키지명 가져오기
+            val pkg = MyAccessibilityService.instance?.rootInActiveWindow?.packageName?.toString() ?: ""
 
-            // 1. 배달 카테고리
             if (pkg == "com.sampleapp" || pkg == "com.fineapp.yogiyo") {
                 q1.text = "음식이나 가게를 어떻게 검색하나요?"
                 q2.text = "담은 상품들이 어디에 있나요?"
                 q3.text = "어떻게 쿠폰을 써서 결제하나요?"
                 q4.text = "주문을 취소하고 싶어요."
                 q4.visibility = View.VISIBLE
-            }
-            // 2. 정부24
-            else if (pkg == "kr.go.minwon.m") {
+            } else if (pkg == "kr.go.minwon.m") {
                 q1.text = "전자증명서 출력 방법 (종이/다운로드)"
                 q2.text = "전자증명서 기관 제출 방법"
                 q3.text = "민원 신청 내역이 확인되지 않아요."
                 q4.text = "발급민원 저장 순서"
                 q4.visibility = View.VISIBLE
-            }
-            // 3. 교통 및 예매
-            else if (pkg == "com.korail.talk" || pkg == "kr.co.tmoney.tia") {
+            } else if (pkg == "com.korail.talk" || pkg == "kr.co.tmoney.tia") {
                 q1.text = "예매 날짜와 시간은 어디서 고르나요?"
                 q2.text = "좌석 선택과 예매는 어떻게 하나요?"
                 q3.text = "예매한 표를 보고 싶어요 (티켓함)"
-                q4.visibility = View.GONE // 질문이 3개이므로 4번째는 숨김
-            }
-            // 그 외 기본 질문
-            else {
+                q4.visibility = View.GONE
+            } else {
                 q1.text = "이 화면의 주요 기능을 알려줘"
                 q2.text = "무엇을 누르면 되나요?"
                 q3.visibility = View.GONE
                 q4.visibility = View.GONE
             }
         }
-        //---------------------------------------------------------
 
-        // --------------코드 추가 : recommendContainer 변수, if문을 when(mode)로 변경---------------------------------------
+        // 모드(mode)에 따른 뷰 보이기/숨기기
         when (mode) {
             "ASK" -> {
-                contentText.visibility = View.GONE
+                textContentLayout.visibility = View.GONE
                 buttonContainer.visibility = View.VISIBLE
-                if (recommendContainer != null) recommendContainer.visibility = View.GONE
+                recommendContainer?.visibility = View.GONE
+
+                val btnDirect = textBoxView!!.findViewById<View>(R.id.btn_ask_question)
+
+                btnDirect.setOnClickListener {
+                    val currentPkg = MyAccessibilityService.instance?.rootInActiveWindow?.packageName?.toString() ?: ""
+
+                    if (currentPkg.isNotEmpty() && currentPkg != "com.example.pbl2") {
+                        lastTargetPackage = currentPkg
+                        Log.d("FloatingService", "Target App Saved: $lastTargetPackage")
+                    }
+                    showSearchBar()
+                }
             }
             "RECOMMEND" -> {
-                contentText.visibility = View.GONE
+                textContentLayout.visibility = View.GONE
                 buttonContainer.visibility = View.GONE
-                if (recommendContainer != null) recommendContainer.visibility = View.VISIBLE
+                recommendContainer?.visibility = View.VISIBLE
             }
-            else -> {
-                contentText.visibility = View.VISIBLE
+            else -> { // "TEXT" 모드 (결과를 띄울 때)
+                textContentLayout.visibility = View.VISIBLE
                 buttonContainer.visibility = View.GONE
-                if (recommendContainer != null) recommendContainer.visibility = View.GONE
+                recommendContainer?.visibility = View.GONE
             }
         }
-        // --------------------------------------------------------------------
 
-
-
-
-        /* 기존 코드
-        if (showButtons) {
-            // 버튼 2개 모드
-            contentText.visibility = View.GONE
-            buttonContainer.visibility = View.VISIBLE
+        val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         } else {
-            // 일반 텍스트 모드
-            contentText.visibility = View.VISIBLE
-            buttonContainer.visibility = View.GONE
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
         }
-         */
 
         val boxParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
+            layoutType,
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         )
         boxParams.gravity = Gravity.CENTER
 
-        // X 버튼: 박스만 닫기
+        // 버튼 클릭 이벤트 처리
         textBoxView!!.findViewById<View>(R.id.btn_close_text_box).setOnClickListener {
             closeTextBox()
         }
 
-        // 질문 하시겠습니까? 클릭 시
         textBoxView!!.findViewById<View>(R.id.btn_ask_question).setOnClickListener {
-            closeMenu() // 질문 클릭 시는 메뉴도 함께 닫음
+            // 검색창을 띄우기 전, 현재 화면의 패키지명을 미리 저장
+            val currentPkg = MyAccessibilityService.instance?.rootInActiveWindow?.packageName?.toString() ?: ""
+            if (currentPkg.isNotEmpty() && currentPkg != "com.example.pbl2") {
+                lastTargetPackage = currentPkg
+            }
+
+            closeMenu()
             closeTextBox()
             showSearchBar()
         }
+
+        val onRecommendClickListener = View.OnClickListener { view ->
+            val clickedQuestion = (view as TextView).text.toString()
+            Toast.makeText(this, "'$clickedQuestion' 질문을 전송합니다...", Toast.LENGTH_SHORT).show()
+            closeTextBox()
+
+            val pkg = MyAccessibilityService.instance?.rootInActiveWindow?.packageName?.toString() ?: ""
+
+            // 기존 sendToServer 대신 캡처 실행!
+            launchCaptureActivity(clickedQuestion, pkg)
+        }
+
+
+        q1.setOnClickListener(onRecommendClickListener)
+        q2.setOnClickListener(onRecommendClickListener)
+        q3.setOnClickListener(onRecommendClickListener)
+        q4.setOnClickListener(onRecommendClickListener)
+
 
         windowManager.addView(textBoxView, boxParams)
         textBoxView!!.startAnimation(AlphaAnimation(0f, 1f).apply { duration = 300 })
     }
 
+
     private fun showSearchBar() {
+
         closeSearchBar()
-        searchBarView = LayoutInflater.from(this).inflate(R.layout.layout_search_bar, null)
+
+        searchBarView = LayoutInflater.from(this)
+            .inflate(R.layout.layout_search_bar, null)
+
+        val editSearch =
+            searchBarView!!.findViewById<EditText>(R.id.edit_search)
+
+        val btnSendText =
+            searchBarView!!.findViewById<ImageView>(R.id.btn_send_text)
+
+        val btnMic =
+            searchBarView!!.findViewById<ImageView>(R.id.btn_mic)
+
+        val btnClose =
+            searchBarView!!.findViewById<View>(R.id.btn_close_search)
+
+        // 1. 돋보기(전송) 버튼 클릭 시
+        btnSendText.setOnClickListener {
+            val question = editSearch.text.toString()
+            if (question.isNotBlank()) {
+                Toast.makeText(this, "질문을 전송합니다...", Toast.LENGTH_SHORT).show()
+                closeSearchBar()
+                val pkg = MyAccessibilityService.instance?.rootInActiveWindow?.packageName?.toString() ?: ""
+
+                // 캡처 실행
+                launchCaptureActivity(question, pkg)
+            }
+        }
+
+
+
+        // 2. 마이크 버튼 클릭 시: 음성 인식(STT) 시작
+        btnMic.setOnClickListener {
+
+            Toast.makeText(
+                this,
+                "말씀해 주세요...",
+                Toast.LENGTH_SHORT
+            ).show()
+
+            startVoiceRecognition()
+        }
+
+        // 3. 닫기 버튼
+        btnClose.setOnClickListener {
+            closeSearchBar()
+        }
 
         val searchParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, // 키보드 입력을 위해 Focusable 상태 유지
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            else
+                WindowManager.LayoutParams.TYPE_PHONE,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         )
+
         searchParams.gravity = Gravity.TOP
         searchParams.y = 150
 
-        // 닫기 버튼 로직
-        searchBarView!!.findViewById<View>(R.id.btn_close_search).setOnClickListener {
-            closeSearchBar()
+        windowManager.addView(searchBarView, searchParams)
+    }
+
+
+    // 음성 인식(STT)을 실행하고 서버로 보내는 함수
+    private fun startVoiceRecognition() {
+
+        val speechRecognizer =
+            SpeechRecognizer.createSpeechRecognizer(this)
+
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+
+            putExtra(
+                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+            )
+
+            putExtra(
+                RecognizerIntent.EXTRA_LANGUAGE,
+                "ko-KR"
+            )
         }
 
-        windowManager.addView(searchBarView, searchParams)
+        speechRecognizer.setRecognitionListener(object : RecognitionListener {
+
+            override fun onReadyForSpeech(params: Bundle?) {}
+
+            override fun onBeginningOfSpeech() {}
+
+            override fun onRmsChanged(rmsdB: Float) {}
+
+            override fun onBufferReceived(buffer: ByteArray?) {}
+
+            override fun onEndOfSpeech() {}
+
+            override fun onError(error: Int) {
+                Toast.makeText(
+                    this@FloatingService,
+                    "음성 인식 실패 (에러코드: $error)",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+
+            override fun onResults(results: Bundle?) {
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                if (!matches.isNullOrEmpty()) {
+                    val voiceText = matches[0]
+                    Toast.makeText(this@FloatingService, "인식됨: $voiceText", Toast.LENGTH_SHORT).show()
+                    closeSearchBar()
+                    val pkg = MyAccessibilityService.instance?.rootInActiveWindow?.packageName?.toString() ?: ""
+
+                    // 캡처 실행
+                    launchCaptureActivity(voiceText, pkg)
+                }
+            }
+
+
+
+            override fun onPartialResults(partialResults: Bundle?) {}
+
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+
+        speechRecognizer.startListening(intent)
     }
 
     private fun closeMenu() {
@@ -449,7 +616,18 @@ class FloatingService : Service() {
     }
 
     private fun closeTextBox() {
-        textBoxView?.let { try { windowManager.removeView(it) } catch (e: Exception) {}; textBoxView = null }
+
+        tts?.stop() // 창을 닫으면 읽어주던 음성도 멈춤
+
+        textBoxView?.let {
+
+            try {
+                windowManager.removeView(it)
+            } catch (e: Exception) {
+            }
+
+            textBoxView = null
+        }
     }
 
     private fun closeSearchBar() {
@@ -475,11 +653,27 @@ class FloatingService : Service() {
     }
 
     override fun onDestroy() {
+
         super.onDestroy()
-        if (::buttonView.isInitialized) try { windowManager.removeView(buttonView) } catch (e: Exception) {}
+
+        if (::buttonView.isInitialized) {
+            try {
+                windowManager.removeView(buttonView)
+            } catch (e: Exception) {
+            }
+        }
+
         closeMenu()
         closeTextBox()
         closeSearchBar()
+
+        try {
+            unregisterReceiver(ocrResultReceiver)
+        } catch (e: Exception) {
+        }
+
+        tts?.stop()
+        tts?.shutdown()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -492,11 +686,6 @@ class FloatingService : Service() {
         val service = MyAccessibilityService.instance?:return   // 전역 instance 사용
         startOverlay{rect->
             serviceScope.launch(Dispatchers.Default){
-                /* 접근성서비스 - 텍스트 추출
-                val texts=service.getDragTextNow(rect)
-                if(texts.isNotEmpty()){
-                    texts.forEach { Log.d("OCR_RESULT", it) }
-                }*/
                 Log.d("FLOW", "OCR 실행")
                 // 미디어프로덕션 - OCR
                 if (rect == null) {
@@ -520,39 +709,62 @@ class FloatingService : Service() {
 
     // 캡쳐 (전체 화면) 요청
     private fun captureOnceAll() {
-        val service = MyAccessibilityService.instance   // 전역 instance 사용
-        if (service == null) {  // 서비스 안 켜져 있으면 종료
+        val service = MyAccessibilityService.instance
+
+        // 접근성 서비스 확인
+        if (service == null) {
             Toast.makeText(this, "접근성 서비스가 꺼져있어요", Toast.LENGTH_SHORT).show()
             return
         }
-        // 화면 안정화 위해 딜레이
+
         Handler(Looper.getMainLooper()).postDelayed({
-            val texts = service.getAllTextNow() // AccessibilityService에서 전체 텍스트 가져오기
+
+            val texts = service.getAllTextNow()
+
+            // 1. 유효한 텍스트 필터링
             val validTexts = texts.filter {
                 val text = it.trim()
-                text.length > 5 && text.contains(" ") && !text.contains("http") && !text.contains(".kr") && !text.contains(".com") && !text.contains("/") && !text.contains("secure", true)
+
+                text.length > 5 &&
+                        text.contains(" ") &&
+                        !text.contains("http") &&
+                        !text.contains(".kr") &&
+                        !text.contains(".com") &&
+                        !text.contains("/") &&
+                        !text.contains("secure", ignoreCase = true)
             }
+
             val totalLength = validTexts.sumOf { it.length }
             val count = validTexts.size
 
-            val shouldCapture = count >= 3 && totalLength >= 100
+            // 2. 텍스트 충분 여부 판단
+            val hasEnoughText = count >= 3 && totalLength >= 100
 
-            if (!shouldCapture) {    // 접근성 서비스로 얻은 텍스트 출력
-                Log.d("FLOW", "접근성 사용")
+            if (hasEnoughText) {
+                // 3-1. 텍스트 충분 → 텍스트만 전송
+                Log.d("FLOW", "접근성 텍스트 충분 -> 텍스트만 전송")
 
-                texts.forEach { Log.d("OCR_RESULT", texts.joinToString("\n")) } // 텍스트 출력
-                return@postDelayed
-            }else{  // 접근성 서비스로 얻은 텍스트 부족시, MediaProjection 실행
-                Log.d("FLOW", "OCR 실행")
+                val finalText = texts.joinToString("\n")
+
+                sendToServer(finalText, "summary", null) { answer ->
+                    Log.d("API_RESULT", answer)
+                    sendResultToUI(answer)
+                }
+
+            } else {
+                // 3-2. 텍스트 부족 → 화면 캡처 + OCR
+                Log.d("FLOW", "접근성 텍스트 부족 -> 화면 캡처 및 이미지 전송 실행")
+
                 val intent = Intent(this, CaptureActivity::class.java).apply {
                     putExtra("mode", "ALL")
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
+
                 startActivity(intent)
             }
+
         }, 300)
     }
-
     // 오버레이를 실제로 화면 위에 띄우는 함수
     private fun startOverlay(onSelected: (Rect) -> Unit) {
         if (!Settings.canDrawOverlays(this)) {
@@ -603,4 +815,66 @@ class FloatingService : Service() {
         }
         windowManager.addView(overlay, params)
     }
+
+    fun sendToServer(text: String, mode: String, bitmap: Bitmap?, packageName: String? = null, onResult: (String) -> Unit) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // 비트맵이 있으면 Base64 문자열로 변환
+                val base64Image = bitmap?.let { bitmapToBase64(it) }
+
+                // QuestionRequest에 packageName도 같이 담아서 포장합니다.
+                val request = QuestionRequest(text, mode, base64Image, packageName)
+                val response = RetrofitClient.api.askQuestion(request)
+
+                if (response.isSuccessful) {
+                    val answer = response.body()?.answer ?: ""
+                    onResult(answer)   // 콜백 실행
+                }
+            } catch (e: Exception) {
+                Log.e("API_ERROR", e.toString())
+            }
+        }
+    }
+
+
+    // 이미지를 문자열(Base64)로 변환하는 함수
+    private fun bitmapToBase64(bitmap: Bitmap): String {
+
+        val outputStream = ByteArrayOutputStream()
+
+        bitmap.compress(
+            Bitmap.CompressFormat.JPEG,
+            70,
+            outputStream
+        )
+
+        val byteArray = outputStream.toByteArray()
+
+        return Base64.encodeToString(
+            byteArray,
+            Base64.NO_WRAP
+        )
+    }
+
+    private fun sendResultToUI(text: String) {
+        val intent = Intent("OCR_RESULT_ACTION")
+        intent.setPackage(packageName)
+        intent.putExtra("result", text)
+        sendBroadcast(intent)
+    }
+
+    // 캡처 액티비티를 실행하는 전용 함수
+    private fun launchCaptureActivity(question: String, pkg: String) {
+        Handler(Looper.getMainLooper()).postDelayed({
+            val intent = Intent(this, CaptureActivity::class.java).apply {
+                putExtra("mode", "DIRECT") // 캡처 모드를 직접질문(DIRECT)으로 설정
+                putExtra("question", question)
+                putExtra("pkg", pkg)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(intent)
+        }, 500)
+    }
+
+
 }
