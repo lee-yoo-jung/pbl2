@@ -32,6 +32,7 @@ import kotlin.math.abs
 import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Query
+import org.json.JSONObject
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
 import android.speech.tts.TextToSpeech
@@ -39,6 +40,7 @@ import java.util.Locale
 import android.widget.RelativeLayout
 import android.widget.ImageView
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.util.Base64
 import java.io.ByteArrayOutputStream
 import android.speech.RecognitionListener
@@ -46,6 +48,7 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.widget.EditText
 import android.os.Bundle
+import android.widget.Button
 
 class FloatingService : Service() {
     private var overlayView: View? = null
@@ -56,6 +59,8 @@ class FloatingService : Service() {
     private lateinit var buttonView: View
     private lateinit var buttonParams: WindowManager.LayoutParams
 
+    private lateinit var popupView: View
+    private lateinit var btnhighlight: Button
     private var menuView: View? = null
     private var returnAppView: View? = null
     private var textBoxView: View? = null
@@ -74,6 +79,8 @@ class FloatingService : Service() {
 
     data class ClickRange(var start: Pair<Float, Float> = Pair(0f,0f),var end: Pair<Float, Float> = Pair(0f,0f))
     val clicks= ClickRange()
+
+
     private val ocrResultReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val result = intent?.getStringExtra("result")
@@ -81,13 +88,27 @@ class FloatingService : Service() {
 
             if (result != null) {
                 Handler(Looper.getMainLooper()).post {
+                    var x: Float? = null
+                    var y: Float? = null
+
                     // UI에는 답변 텍스트만 띄움
                     showTextBox(mode = "TEXT", shouldCloseMenu = true, message = result)
 
                     // 좌표값은 화면에 띄우지 않고 로그로만 남김
                     if (coords != null) {
-                        Log.d("HIGHLIGHT_COORDS", "좌표: $coords")
+                        Log.d("HIGHLIGHT_COORDS", "좌표: $coords") // ex. 좌표: {"x":500, "y":874}
+                        // 좌표 파싱
+                        val json = JSONObject(coords)
+                        x = json.getDouble("x").toFloat()
+                        y = json.getDouble("y").toFloat()
                     }
+                    showTextBox(
+                        mode = "TEXT",
+                        shouldCloseMenu = true,
+                        message = result,
+                        x = x,
+                        y = y
+                    )
                 }
             }
         }
@@ -272,20 +293,6 @@ class FloatingService : Service() {
             }
         }
 
-
-        /* 기존 코드
-        for (i in 0 until menuLayout.childCount) {
-            menuLayout.getChildAt(i).setOnClickListener {
-                if (i == 2) {
-                    // [3번째 메뉴 클릭] 메뉴 유지 + 버튼 2개 텍스트박스
-                    showTextBox(showButtons = true, shouldCloseMenu = false)
-                } else {
-                    // [1, 2번째 메뉴 클릭] 메뉴 닫기 + 일반 텍스트박스
-                    showTextBox(showButtons = false, shouldCloseMenu = true)
-                }
-            }
-        }*/
-
         val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE
 
@@ -325,12 +332,19 @@ class FloatingService : Service() {
         Handler(Looper.getMainLooper()).post { startMenuAnimation(menuLayout, isButtonOnRight) }
     }
 
-    private fun showTextBox(mode: String, shouldCloseMenu: Boolean, message: String? = null) {
+    private fun showTextBox(
+        mode: String,
+        shouldCloseMenu: Boolean,
+        message: String? = null,
+        x: Float? = null,
+        y: Float? = null
+    ) {
         if (shouldCloseMenu) closeMenu()
         closeTextBox()
 
         textBoxView = LayoutInflater.from(this).inflate(R.layout.layout_text_box, null)
 
+        btnhighlight = textBoxView!!.findViewById<Button>(R.id.btn_highlight)
         val textContentLayout = textBoxView!!.findViewById<LinearLayout>(R.id.text_content_layout)
         val contentText = textBoxView!!.findViewById<TextView>(R.id.content_text)
         val btnTtsPlay = textBoxView!!.findViewById<ImageView>(R.id.btn_tts_play)
@@ -352,6 +366,21 @@ class FloatingService : Service() {
             if (message != null) {
                 tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "TTS_ID")
             }
+        }
+
+        btnhighlight.visibility = View.VISIBLE
+        Log.d("HIGHLIGHT_COORDS", btnhighlight.visibility.toString())
+
+        if (x != null && y != null) {
+            btnhighlight.visibility = View.VISIBLE
+
+            btnhighlight.setOnClickListener {
+                closeMenu()
+                closeTextBox()
+                highlight_Controller(x, y, this@FloatingService)
+            }
+        } else {
+            btnhighlight.visibility = View.GONE
         }
 
         // 추천 질문(RECOMMEND) 내용 세팅
@@ -878,3 +907,16 @@ class FloatingService : Service() {
 
 
 }
+
+/*
+val customButton = findViewById<Button>(R.id.btn_custom_action)
+
+// 필요할 때 표시
+customButton.visibility = View.VISIBLE
+
+customButton.setOnClickListener {
+
+    // 버튼 클릭 시 동작
+    Toast.makeText(this, "버튼 클릭!", Toast.LENGTH_SHORT).show()
+}
+*/

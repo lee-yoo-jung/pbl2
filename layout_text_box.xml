@@ -4,7 +4,7 @@
     android:layout_height="wrap_content"
     android:padding="16dp">
 
-    <!-- 1. 부모 레이아웃: 가로폭을 320dp로 확장 -->
+    <!-- 1. 부모 레이아웃 -->
     <LinearLayout
         android:id="@+id/text_box_root"
         android:layout_width="match_parent"
@@ -12,12 +12,12 @@
         android:background="@android:color/transparent"
         android:orientation="vertical">
 
-        <!-- 추천 디자인: X 버튼을 박스 우측 상단에 '플로팅' 아이콘 형태로 배치 -->
+        <!-- X 버튼 -->
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="0dp"
-            android:translationZ="10dp"> <!-- 박스보다 위에 보이게 설정 -->
+            android:translationZ="10dp">
 
             <TextView
                 android:id="@+id/btn_close_text_box"
@@ -32,22 +32,58 @@
                 android:textStyle="bold" />
         </RelativeLayout>
 
-        <!-- 2. 메뉴 1, 2번용 (모서리 둥근 회색 박스) -->
-        <TextView
-            android:id="@+id/content_text"
+        <!-- 2. 텍스트 박스 + TTS 스피커 아이콘 합치기 -->
+        <LinearLayout
+            android:id="@+id/text_content_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@drawable/bg_box_rounded"
             android:elevation="4dp"
-            android:gravity="center"
             android:minHeight="120dp"
-            android:padding="20dp"
-            android:text="내용이 여기에 표시됩니다."
-            android:textColor="#333333"
-            android:textSize="16sp"
-            android:visibility="visible" />
+            android:orientation="vertical"
+            android:visibility="visible">
 
-        <!-- 3. 메뉴 3번용 직접 질문 (모서리 둥근 회색 박스들) -->
+            <TextView
+                android:id="@+id/content_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:paddingStart="20dp"
+                android:paddingTop="20dp"
+                android:paddingEnd="20dp"
+                android:paddingBottom="8dp"
+                android:text="내용이 여기에 표시됩니다."
+                android:textColor="#333333"
+                android:textSize="16sp" />
+
+            <!-- 좌측 하단 추천질문 하이라이트 버튼 -->
+            <Button
+                android:id="@+id/btn_highlight"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="start"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="12dp"
+                android:text="하이라이트 안내"
+                android:textSize="12dp"
+                android:padding="10dp"
+                android:background="@drawable/bg_recommend_btn"
+                android:visibility="visible"/>
+
+            <!-- 우측 하단 스피커(재생) 아이콘 -->
+            <ImageView
+                android:id="@+id/btn_tts_play"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="end"
+                android:layout_marginEnd="16dp"
+                android:layout_marginBottom="12dp"
+                android:contentDescription="음성 듣기"
+                android:src="@android:drawable/ic_media_play" />
+        </LinearLayout>
+
+        <!-- 3. 메뉴 3번용 직접 질문 -->
         <LinearLayout
             android:id="@+id/button_container"
             android:layout_width="match_parent"
@@ -106,8 +142,8 @@
                 android:id="@+id/rec_q4"
                 style="@style/RecommendButtonStyle"
                 android:text="질문 4"
-                android:visibility="gone" /> <!-- 기본적으로는 숨김 -->
+                android:visibility="gone" />
         </LinearLayout>
-
     </LinearLayout>
+
 </FrameLayout>
