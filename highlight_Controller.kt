@@ -140,7 +140,6 @@ class OverlayManager(private val context: Context) {
             spotlightView.SpotClick = {
                 remove()
             }
-
             windowManager.addView(closeView, closeParams)
 
             isAdded = true
@@ -158,11 +157,20 @@ class OverlayManager(private val context: Context) {
 
 // Spotlight 띄우기
 class highlight_Controller(x: Float, y: Float, private val context: Context) {
+    val displayMetrics=context.resources.displayMetrics
+    val screenWidth=displayMetrics.widthPixels.toFloat()
+    val screenHeight=displayMetrics.heightPixels.toFloat()
+
+    val calWidth=(x/1000f)*screenWidth
+    val calHeight=(y/1000f)*screenHeight
+    val calradius=80f*displayMetrics.density
+
     private val overlay = OverlayManager(context)   // spotlight
+
     init {
         val spots = listOf(
             // 좌표 변환 부분 = (x,y)원 중심, 반지름
-            Triple(x,y,80f)
+            Triple(calWidth,calHeight,calradius)
         )
         overlay.show(spots)
     }
