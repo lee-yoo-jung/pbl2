@@ -56,6 +56,7 @@ class CaptureActivity : AppCompatActivity() {
                 putExtra("mode", mode)
                 putExtra("question", intent.getStringExtra("question"))
                 putExtra("pkg", intent.getStringExtra("pkg"))
+                putExtra("lang", intent.getStringExtra("lang"))
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 Log.d("FLOW", "START_RECORDING 서비스 실행")
@@ -74,6 +75,7 @@ class CaptureActivity : AppCompatActivity() {
                     putExtra("mode", mode)
                     putExtra("question", intent.getStringExtra("question"))
                     putExtra("pkg", intent.getStringExtra("pkg"))
+                    putExtra("lang", intent.getStringExtra("lang"))
                 }
                 startService(actionIntent)
             }, 2500)

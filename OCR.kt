@@ -43,21 +43,13 @@ object OCR{
                 val isTable = TableDetector.isTable(results)
                 Log.d("OCR_TABLE", "표 판별 결과: $isTable")
 
-                if(isTable) {
-                    // TODO: 이미지로 LLM 입력
-                    return@addOnSuccessListener
-                }
-
                 val text = visionText.text
 
                 // 1. 부분/전체 상관없이 단어 신뢰도 추출
                 for (block in visionText.textBlocks) {
                     for (line in block.lines) {
                         for (element in line.elements) {
-
                             val confidence = element.confidence
-                            Log.d("ML", "단어: ${element.text}, 신뢰도: $confidence")
-
                             textConfidenceArray.add(confidence)
                         }
                     }
@@ -73,26 +65,20 @@ object OCR{
                 Log.d("OCR_RESULT", "추출된 텍스트: $resultText")
 
                 // 3. 신뢰도 판단 (평균 0.7 기준)
-                val isLowConfidence =
-                    textConfidenceArray.isNotEmpty() &&
-                            textConfidenceArray.average() < 0.7
+                val isLowConfidence = textConfidenceArray.isNotEmpty() && textConfidenceArray.average() < 0.7
 
-                // 4. 결과 반환
-                if (resultText == "인식된 단어가 없습니다." || isLowConfidence) {
-
-                    Log.d("OCR_RESULT", "신뢰도 낮음/글자 없음 -> 이미지도 같이 반환")
-
+                // 4. 결과 반환 (표가 있거나, 글자가 없거나, 신뢰도가 낮으면 이미지 전송)
+                if (isTable || resultText == "인식된 단어가 없습니다." || isLowConfidence) {
+                    Log.d("OCR_RESULT", "표 발견/신뢰도 낮음/글자 없음 -> 이미지도 같이 반환")
                     // 텍스트 + 이미지 전송
                     onComplete(resultText, targetedBitmap)
-
                 } else {
-
                     Log.d("OCR_RESULT", "정상 인식 -> 텍스트만 반환")
-
                     // 텍스트만 전송
                     onComplete(resultText, null)
                 }
             }
+
             // OCR 실패 시 = 이미지 입력
             .addOnFailureListener {
                 Log.e("OCR_ERROR", it.message ?: "Error")   // OCR 실패 메시지

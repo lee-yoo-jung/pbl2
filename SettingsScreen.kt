@@ -22,21 +22,37 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import android.content.Intent
+import android.provider.Settings
 import java.util.*
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(answerText: String) {
 
     val context = LocalContext.current
+    // 초기값을 false로 두어 앱을 켰을 때 바로 버튼이 생기지 않게 조절할 수 있습니다.
+    var floatingOn by remember { mutableStateOf(false) }
 
-    var floatingOn by remember { mutableStateOf(true) }
+    // floatingOn 스위치를 누를 때마다 이 블록이 실행됩니다.
+    LaunchedEffect(floatingOn) {
+        val intent = Intent(context, FloatingService::class.java)
+        if (floatingOn) {
+            // "다른 앱 위에 그리기" 권한이 있는지 확인 후 서비스 시작
+            if (Settings.canDrawOverlays(context)) {
+                context.startService(intent)
+            }
+        } else {
+            context.stopService(intent) // 스위치를 끄면 서비스 종료
+        }
+    }
+
     var helpOn by remember { mutableStateOf(false) }
     var optionOn by remember { mutableStateOf(true) }
 
     var expanded by remember { mutableStateOf(false) }
     var selectedLanguage by remember { mutableStateOf("한국어") }
 
-    val languages = listOf("ko" to "한국어", "en" to "English")
+    val languages = listOf("ko" to "한국어", "en" to "English", "ja" to "日本語", "zh" to "中文")
 
     val purple = Color(0xFF6A5ACD)
 
@@ -92,7 +108,7 @@ fun SettingsScreen() {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    if (currentLang == "ko") "한국어" else "English"
+                    languages.find { it.first == currentLang }?.second ?: "한국어"
                 )
                 Text("▼")
             }
@@ -107,6 +123,10 @@ fun SettingsScreen() {
                         onClick = {
                             saveLanguage(context, lang.first)
                             setLocale(context, lang.first)
+
+                            // FloatingService에서 읽을 수 있게 언어 이름 저장 추가
+                            val prefs = context.getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+                            prefs.edit().putString("APP_LANG", lang.second).apply()
 
                             (context as? Activity)?.recreate()
 

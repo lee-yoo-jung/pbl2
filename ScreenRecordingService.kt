@@ -36,6 +36,8 @@ import java.io.ByteArrayOutputStream
 import com.example.pbl2.QuestionRequest
 import java.io.File
 import java.io.FileOutputStream
+import java.util.Locale
+import android.content.Context
 
 // 사용자가 허용한 화면 캡쳐 권한을 이용해서, 화면을 녹화한 뒤 이미지를 OCR 실행하는 포그라운드 코드
 @Parcelize // 데이터를 다른 Activity로 전달하기 위한 도구
@@ -70,6 +72,7 @@ class ScreenRecordService: Service() {
     private var listenerSet: Boolean = false
     private var ignoreFirstFrame: Boolean = true
     private var hasProcessedOCR = false
+    private var targetLang: String? = null
 
     // 화면 캡쳐를 시작하기 위한 관리자
     private val mediaProjectionManager by lazy {    // lazy: 변수가 처음 사용될 때 한 번만 실행 후 값 저장
@@ -88,6 +91,12 @@ class ScreenRecordService: Service() {
 
     // 서비스에 명령을 내릴 때마다 호출되는 함수
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        intent?.let {
+            mode = it.getStringExtra("mode")
+            questionText = it.getStringExtra("question")
+            targetPkgName = it.getStringExtra("pkg")
+            targetLang = it.getStringExtra("lang") // 전달받은 언어 저장
+        }
         intent?.getStringExtra("mode")?.let {
             mode = it
             intent?.getStringExtra("question")?.let { questionText = it }
@@ -498,22 +507,23 @@ class ScreenRecordService: Service() {
     fun sendToServer(text: String, mode: String, bitmap: Bitmap?, packageName: String? = null, onResult: (String) -> Unit) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // 비트맵이 있으면 Base64 문자열로 변환
                 val base64Image = bitmap?.let { bitmapToBase64(it) }
+                val currentLang = getCurrentLanguage() // 추가됨
 
-                // QuestionRequest에 packageName도 같이 담아서 포장합니다.
-                val request = QuestionRequest(text, mode, base64Image, packageName)
+                // request 포장에 언어 추가
+                val request = QuestionRequest(text, mode, base64Image, packageName, currentLang)
                 val response = RetrofitClient.api.askQuestion(request)
 
                 if (response.isSuccessful) {
                     val answer = response.body()?.answer ?: ""
-                    onResult(answer)   // 콜백 실행
+                    onResult(answer)
                 }
             } catch (e: Exception) {
                 Log.e("API_ERROR", e.toString())
             }
         }
     }
+
 
 
     // 이미지를 텍스트(Base64)로 압축 변환하는 함수
@@ -544,6 +554,14 @@ class ScreenRecordService: Service() {
             intent.putExtra("coords", coordsJson)
         }
         sendBroadcast(intent)
+    }
+
+    private fun getCurrentLanguage(): String {// 1. 서비스가 시작될 때 전달받은 언어가 있다면 그것을 사용
+        if (!targetLang.isNullOrEmpty()) return targetLang!!
+
+        // 2. 없다면 설정값에서 가져옴
+        val prefs = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+        return prefs.getString("APP_LANG", "한국어") ?: "한국어"
     }
 
 

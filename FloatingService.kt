@@ -48,7 +48,13 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.widget.EditText
 import android.os.Bundle
+import android.text.SpannableStringBuilder
 import android.widget.Button
+import android.text.style.ForegroundColorSpan
+import android.text.Spannable
+import android.text.style.StyleSpan
+import android.graphics.Typeface
+
 
 class FloatingService : Service() {
     private var overlayView: View? = null
@@ -65,6 +71,7 @@ class FloatingService : Service() {
     private var returnAppView: View? = null
     private var textBoxView: View? = null
     private var searchBarView: View? = null
+    private var targetLang: String? = null
 
     private lateinit var summaryAll: TextView
     private lateinit var summarySection: TextView
@@ -73,6 +80,10 @@ class FloatingService : Service() {
     private var screenWidth = 0
     private var screenHeight = 0
     private var lastCloseTime = 0L
+
+    private var mode: String? = null
+    private var questionText: String? = null
+    private var targetPkgName: String? = null
 
     private var tts: TextToSpeech? = null
     private var lastTargetPackage: String = "" // 마지막으로 감지된 외부 앱 패키지명
@@ -208,16 +219,18 @@ class FloatingService : Service() {
 
         // TTS 초기화 및 한국어 설정
         tts = TextToSpeech(this) { status ->
-
             if (status == TextToSpeech.SUCCESS) {
-
-                tts?.language = Locale.KOREAN
-
-                tts?.setSpeechRate(0.8f)  // 속도 조절
-
+                val lang = getCurrentLanguage()
+                tts?.language = when (lang) {
+                    "English" -> Locale.ENGLISH
+                    "日本語" -> Locale.JAPANESE
+                    "中文" -> Locale.CHINESE
+                    else -> Locale.KOREAN
+                }
+                tts?.setSpeechRate(0.8f)
             }
-
         }
+
     }
 
     private fun toggleMenu() {
@@ -238,6 +251,56 @@ class FloatingService : Service() {
 
         summaryAll = menuView!!.findViewById(R.id.summaryAll)
         summarySection = menuView!!.findViewById(R.id.summarySection)
+
+        val lang = getCurrentLanguage()
+        summaryAll.text =
+            when (lang) {
+                "English" -> "Summarize"
+                "日本語" -> "全体要約"
+                "中文" -> "全部摘要"
+                else -> "화면요약"
+            }
+        summarySection.text =
+            when (lang) {
+                "English" -> "Crop"
+                "日本語" -> "部分翻訳"
+                "中文" -> "部分翻译"
+                else -> "부분해석"
+            }
+
+        // 영어일 때만 글자 크기 조정
+        if (lang == "English") {
+            // Summarize 버튼만 작게
+            summaryAll.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 11f)
+            // summarySection(Crop)은 코드에서 제외하여 기본 크기 유지
+        } else {
+            summaryAll.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15f)
+        }
+
+        val askMenu = menuLayout.getChildAt(2) as? TextView
+        val recommendMenu = menuLayout.getChildAt(3) as? TextView
+        askMenu?.text =
+            when(lang) {
+                "English" -> "Ask Directly"
+                "日本語" -> "直接質問"
+                "中文" -> "直接提问"
+                else -> "직접질문"
+            }
+        recommendMenu?.text =
+            when(lang) {
+                "English" -> "Recommend"
+                "日本語" -> "おすすめ質問"
+                "中文" -> "推荐提问"
+                else -> "추천질문"
+            }
+
+        // Recommend 버튼 글자 크기 조정
+        if (lang == "English") {recommendMenu?.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 11f)
+            // askMenu(Ask Directly)는 크기 조절을 하지 않아 기본 크기 유지
+        } else {
+            recommendMenu?.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15f)
+        }
+
 
         // 녹화 (전체 화면) 버튼
         summaryAll.setOnClickListener {
@@ -312,6 +375,15 @@ class FloatingService : Service() {
 
         // 하단 앱으로 돌아가기 버튼
         returnAppView = LayoutInflater.from(this).inflate(R.layout.layout_return_app, null)
+        val returnBtnText = when (lang) {
+            "English" -> "Return to App"
+            "日本語" -> "アプリに戻る"
+            "中文" -> "返回应用"
+            else -> "앱으로 돌아가기"
+        }
+        // 레이아웃 내의 텍스트뷰(btn_return_app)를 찾아 글자 변경
+        returnAppView!!.findViewById<TextView>(R.id.btn_return_app).text = returnBtnText
+
         val returnParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
             layoutType, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT
@@ -371,6 +443,14 @@ class FloatingService : Service() {
         btnhighlight.visibility = View.VISIBLE
         Log.d("HIGHLIGHT_COORDS", btnhighlight.visibility.toString())
 
+        val lang = getCurrentLanguage()
+        btnhighlight.text = when(lang) {
+            "English" -> "Highlight"
+            "日本語" -> "強調"
+            "中文" -> "突出显示"
+            else -> "하이라이트"
+        }
+
         if (x != null && y != null) {
             btnhighlight.visibility = View.VISIBLE
 
@@ -383,37 +463,132 @@ class FloatingService : Service() {
             btnhighlight.visibility = View.GONE
         }
 
-        // 추천 질문(RECOMMEND) 내용 세팅
+        // 추천 질문(RECOMMEND) 내용 세팅 (다국어 적용)
+        val btnAsk = textBoxView!!.findViewById<TextView>(R.id.btn_ask_question)
+        val btnHistory = textBoxView!!.findViewById<TextView>(R.id.btn_view_history)
+
+        btnAsk.text =
+            when(lang) {
+                "English" -> "Ask a question"
+                "日本語" -> "質問しますか？"
+                "中文" -> "要提问吗？"
+                else -> "질문 하시겠습니까?"
+            }
+        btnHistory.text =
+            when(lang) {
+                "English" -> "View history"
+                "日本語" -> "以前の質問を見る"
+                "中文" -> "查看历史记录"
+                else -> "이전 질문을 보겠습니까?"
+            }
+
         if (mode == "RECOMMEND") {
             recommendContainer.visibility = View.VISIBLE
-
-            // 임의의 함수 대신 접근성 서비스로 진짜 현재 앱 패키지명 가져오기
             val pkg = MyAccessibilityService.instance?.rootInActiveWindow?.packageName?.toString() ?: ""
 
             if (pkg == "com.sampleapp" || pkg == "com.fineapp.yogiyo") {
-                q1.text = "음식이나 가게를 어떻게 검색하나요?"
-                q2.text = "담은 상품들이 어디에 있나요?"
-                q3.text = "어떻게 쿠폰을 써서 결제하나요?"
-                q4.text = "주문을 취소하고 싶어요."
+                q1.text =
+                    when(lang) {
+                        "English" -> "How to search?"
+                        "日本語" -> "検索方法は？"
+                        "中文" -> "如何搜索？"
+                        else -> "음식이나 가게를 어떻게 검색하나요?"
+                    }
+                q2.text =
+                    when(lang) {
+                        "English" -> "Where is my cart?"
+                        "日本語" -> "カートはどこ？"
+                        "中文" -> "购物车在哪？"
+                        else -> "담은 상품들이 어디에 있나요?"
+                    }
+                q3.text =
+                    when(lang) {
+                        "English" -> "How to use coupons?"
+                        "日本語" -> "クーポンの使い方は？"
+                        "中文" -> "如何使用优惠券？"
+                        else -> "어떻게 쿠폰을 써서 결제하나요?"
+                    }
+                q4.text =
+                    when(lang) {
+                        "English" -> "Cancel order"
+                        "日本語" -> "注文をキャンセル"
+                        "中文" -> "取消订单"
+                        else -> "주문을 취소하고 싶어요."
+                    }
                 q4.visibility = View.VISIBLE
             } else if (pkg == "kr.go.minwon.m") {
-                q1.text = "전자증명서 출력 방법 (종이/다운로드)"
-                q2.text = "전자증명서 기관 제출 방법"
-                q3.text = "민원 신청 내역이 확인되지 않아요."
-                q4.text = "발급민원 저장 순서"
+                q1.text =
+                    when(lang) {
+                        "English" -> "Print/Download certificate"
+                        "日本語" -> "証明書の印刷/ダウンロード方法"
+                        "中文" -> "电子证书打印方法"
+                        else -> "전자증명서 출력 방법 (종이/다운로드)"
+                    }
+                q2.text =
+                    when(lang) {
+                        "English" -> "Submit certificate"
+                        "日本語" -> "証明書の提出方法"
+                        "中文" -> "电子证书提交方法"
+                        else -> "전자증명서 기관 제출 방법"
+                    }
+                q3.text =
+                    when(lang) {
+                        "English" -> "Cannot find application"
+                        "日本語" -> "申請履歴が見つかりません"
+                        "中文" -> "找不到申请记录"
+                        else -> "민원 신청 내역이 확인되지 않아요."
+                    }
+                q4.text =
+                    when(lang) {
+                        "English" -> "Save order"
+                        "日本語" -> "発行の保存順序"
+                        "中文" -> "保存顺序"
+                        else -> "발급민원 저장 순서"
+                    }
                 q4.visibility = View.VISIBLE
             } else if (pkg == "com.korail.talk" || pkg == "kr.co.tmoney.tia") {
-                q1.text = "예매 날짜와 시간은 어디서 고르나요?"
-                q2.text = "좌석 선택과 예매는 어떻게 하나요?"
-                q3.text = "예매한 표를 보고 싶어요 (티켓함)"
+                q1.text =
+                    when(lang) {
+                        "English" -> "Select date/time"
+                        "日本語" -> "日付と時間の選択方法は？"
+                        "中文" -> "在哪里选择日期和时间？"
+                        else -> "예매 날짜와 시간은 어디서 고르나요?"
+                    }
+                q2.text =
+                    when(lang) {
+                        "English" -> "Select seat and book"
+                        "日本語" -> "座席選択と予約方法は？"
+                        "中文" -> "如何选座和预订？"
+                        else -> "좌석 선택과 예매는 어떻게 하나요?"
+                    }
+                q3.text =
+                    when(lang) {
+                        "English" -> "View tickets"
+                        "日本語" -> "予約したチケットを見たい"
+                        "中文" -> "我想看预订的车票"
+                        else -> "예매한 표를 보고 싶어요 (티켓함)"
+                    }
                 q4.visibility = View.GONE
             } else {
-                q1.text = "이 화면의 주요 기능을 알려줘"
-                q2.text = "무엇을 누르면 되나요?"
+                q1.text =
+                    when(lang) {
+                        "English" -> "Main features?"
+                        "日本語" -> "主な機能は？"
+                        "中文" -> "主要功能？"
+                        else -> "이 화면의 주요 기능을 알려줘"
+                    }
+                q2.text =
+                    when(lang) {
+                        "English" -> "What to tap?"
+                        "日本語" -> "何を押せばいい？"
+                        "中文" -> "该点什么？"
+                        else -> "무엇을 누르면 되나요?"
+                    }
                 q3.visibility = View.GONE
                 q4.visibility = View.GONE
             }
         }
+
 
         // 모드(mode)에 따른 뷰 보이기/숨기기
         when (mode) {
@@ -577,19 +752,29 @@ class FloatingService : Service() {
         val speechRecognizer =
             SpeechRecognizer.createSpeechRecognizer(this)
 
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-
-            putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-            )
-
-            putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE,
-                "ko-KR"
-            )
+        // 1. 언어 코드 결정
+        val lang = getCurrentLanguage()
+        val sttLangCode = when (lang) {
+            "English" -> "en-US"
+            "日本語" -> "ja-JP"
+            "中文" -> "zh-CN"
+            else -> "ko-KR"
         }
 
+        // 2. 인텐트 설정 (하나의 intent 객체에 모든 설정을 담아야 합니다)
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+
+            // 이 설정들을 모두 추가해야 엔진이 언어를 강제로 변경합니다.
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, sttLangCode)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, sttLangCode)
+            putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, true) // 현재 언어만 반환하도록 강제
+
+            // 추가: 구글 엔진에게 현재 앱의 패키지명을 알려주어 우선순위를 높임
+            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
+        }
+
+        // 3. 리스너 설정
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
 
             override fun onReadyForSpeech(params: Bundle?) {}
@@ -614,16 +799,16 @@ class FloatingService : Service() {
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 if (!matches.isNullOrEmpty()) {
                     val voiceText = matches[0]
+                    // 결과 확인용 로그
+                    Log.d("STT_RESULT", "언어($sttLangCode) 인식결과: $voiceText")
                     Toast.makeText(this@FloatingService, "인식됨: $voiceText", Toast.LENGTH_SHORT).show()
                     closeSearchBar()
                     val pkg = MyAccessibilityService.instance?.rootInActiveWindow?.packageName?.toString() ?: ""
 
-                    // 캡처 실행
+                    // 캡처 실행하여 서버로 전송
                     launchCaptureActivity(voiceText, pkg)
                 }
             }
-
-
 
             override fun onPartialResults(partialResults: Bundle?) {}
 
@@ -706,6 +891,12 @@ class FloatingService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        intent?.let {
+            mode = it.getStringExtra("mode")
+            questionText = it.getStringExtra("question")
+            targetPkgName = it.getStringExtra("pkg")
+            targetLang = it.getStringExtra("lang") // 전달받은 언어 저장
+        }
         return START_STICKY // 시스템에 의해 종료되어도 다시 살아나게 함
     }
 
@@ -725,6 +916,7 @@ class FloatingService : Service() {
                 val intent = Intent(applicationContext, CaptureActivity::class.java).apply {
                     putExtra("mode", "CROP")
                     putExtra("target_rect", rect)
+                    putExtra("lang", getCurrentLanguage())
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 Log.d("FLOW", "CaptureActivity 실행 직전")
@@ -783,12 +975,11 @@ class FloatingService : Service() {
             } else {
                 // 3-2. 텍스트 부족 → 화면 캡처 + OCR
                 Log.d("FLOW", "접근성 텍스트 부족 -> 화면 캡처 및 이미지 전송 실행")
-
                 val intent = Intent(this, CaptureActivity::class.java).apply {
                     putExtra("mode", "ALL")
+                    putExtra("lang", getCurrentLanguage())
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
-
                 startActivity(intent)
             }
 
@@ -848,22 +1039,23 @@ class FloatingService : Service() {
     fun sendToServer(text: String, mode: String, bitmap: Bitmap?, packageName: String? = null, onResult: (String) -> Unit) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // 비트맵이 있으면 Base64 문자열로 변환
                 val base64Image = bitmap?.let { bitmapToBase64(it) }
+                val currentLang = getCurrentLanguage() // 추가됨
 
-                // QuestionRequest에 packageName도 같이 담아서 포장합니다.
-                val request = QuestionRequest(text, mode, base64Image, packageName)
+                // request 포장에 언어 추가
+                val request = QuestionRequest(text, mode, base64Image, packageName, currentLang)
                 val response = RetrofitClient.api.askQuestion(request)
 
                 if (response.isSuccessful) {
                     val answer = response.body()?.answer ?: ""
-                    onResult(answer)   // 콜백 실행
+                    onResult(answer)
                 }
             } catch (e: Exception) {
                 Log.e("API_ERROR", e.toString())
             }
         }
     }
+
 
 
     // 이미지를 문자열(Base64)로 변환하는 함수
@@ -899,10 +1091,19 @@ class FloatingService : Service() {
                 putExtra("mode", "DIRECT") // 캡처 모드를 직접질문(DIRECT)으로 설정
                 putExtra("question", question)
                 putExtra("pkg", pkg)
+                putExtra("lang", getCurrentLanguage())
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             startActivity(intent)
         }, 500)
+    }
+
+    private fun getCurrentLanguage(): String {// 1. 서비스가 시작될 때 전달받은 언어가 있다면 그것을 사용
+        if (!targetLang.isNullOrEmpty()) return targetLang!!
+
+        // 2. 없다면 설정값에서 가져옴
+        val prefs = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+        return prefs.getString("APP_LANG", "한국어") ?: "한국어"
     }
 
 
