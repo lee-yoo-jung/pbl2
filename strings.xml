@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">PBL2</string>
-    <string name="help">使い方</string>
-    <string name="settings">設定</string>
-    <string name="floating_button">フローティングボタン</string>
-    <string name="help_message">ヘルプメッセージ</string>
-    <string name="option3">オプション 3</string>
-    <string name="recent_questions">最近の質問</string>
+    <string name="help">使用方法</string>
+    <string name="settings">设置</string>
+    <string name="floating_button">悬浮按钮</string>
+    <string name="help_message">帮助提示</string>
+    <string name="option3">选项 3</string>
+    <string name="recent_questions">最近的提问</string>
 </resources>
