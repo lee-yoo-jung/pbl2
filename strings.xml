@@ -1,11 +1,11 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">PBL2</string>
-    <string name="help">使用方法</string>
-    <string name="settings">设置</string>
-    <string name="floating_button">引导按钮</string>
-    <string name="help_message">接受向导</string>
-    <string name="recent_questions">最近的问题</string>
-    <string name="empty_log_title">您还没有什么疑问吗？</string>
-    <string name="empty_log_desc">什么都可以随便问！</string>
+
+    <string name="help">사용법</string>
+    <string name="settings">설정</string>
+    <string name="floating_button">안내 버튼</string>
+    <string name="help_message">안내 받기</string>
+    <string name="recent_questions">최근 질문</string>
+    <string name="empty_log_title">아직 궁금한 점이 없으신가요?</string>
+    <string name="empty_log_desc">무엇이든 편하게 물어보세요!</string>
 </resources>
