@@ -24,12 +24,32 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import android.content.Intent
 import android.provider.Settings
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.unit.sp
+import com.example.pbl2.RetrofitClient.api
 import java.util.*
+// 추가----------------------------------------------------------------------------------------------
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.safeDrawingPadding
+// 추가----------------------------------------------------------------------------------------------
 
 @Composable
 fun SettingsScreen(answerText: String) {
-
     val context = LocalContext.current
+
+    UserSession.userId = context.UserAndroidId() // 유저 아이디
+
+    val responses = remember { mutableStateOf(listOf<LlmlogResponse>()) }
+
+    LaunchedEffect(Unit) {
+        val response = api.getLogs(UserSession.userId)
+
+        if (response.isSuccessful) {
+            responses.value = response.body() ?: emptyList()
+        }
+    }
+
     // 초기값을 false로 두어 앱을 켰을 때 바로 버튼이 생기지 않게 조절할 수 있습니다.
     var floatingOn by remember { mutableStateOf(false) }
 
@@ -47,7 +67,7 @@ fun SettingsScreen(answerText: String) {
     }
 
     var helpOn by remember { mutableStateOf(false) }
-    var optionOn by remember { mutableStateOf(true) }
+    // optionOn 변수 삭제-----------------------------------------------------------------------------
 
     var expanded by remember { mutableStateOf(false) }
     var selectedLanguage by remember { mutableStateOf("한국어") }
@@ -56,128 +76,144 @@ fun SettingsScreen(answerText: String) {
 
     val purple = Color(0xFF6A5ACD)
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp)
-    ) {
 
-        // 상단
-        Box(modifier = Modifier.fillMaxWidth()) {
+    // 추가------------------------------------------------------------------------------------------
+    val customTextStyle = LocalTextStyle.current.copy(
+        fontSize = 20.sp, // 기본은 보통 14~16sp
+        lineHeight = 28.sp
+    )
+    // 추가------------------------------------------------------------------------------------------
 
-            Row(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .background(purple, RoundedCornerShape(16.dp))
-                    .clickable { }
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Default.Help, contentDescription = null, tint = Color.White)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(stringResource(R.string.help), color = Color.White)
-            }
 
-            Text(
-                text = stringResource(R.string.app_name),
-                modifier = Modifier.align(Alignment.Center),
-                style = MaterialTheme.typography.titleLarge
-            )
 
-            Icon(
-                imageVector = Icons.Default.Settings,
-                contentDescription = null,
-                modifier = Modifier.align(Alignment.CenterEnd)
-            )
-        }
+    // 수정------------------------------------------------------------------------------------------
+    CompositionLocalProvider(LocalTextStyle provides customTextStyle) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .safeDrawingPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
+        ) {
 
-        Spacer(modifier = Modifier.height(20.dp))
+            // 상단
+            Box(modifier = Modifier.fillMaxWidth()) {
 
-        // 언어 선택
-        Box(modifier = Modifier.width(200.dp)) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .background(purple, RoundedCornerShape(16.dp))
+                        .clickable { }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Help, contentDescription = null, tint = Color.White)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(stringResource(R.string.help), color = Color.White)
+                }
 
-            val currentLang = loadLanguage(context)
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, Color.Gray, RoundedCornerShape(8.dp))
-                    .clickable { expanded = true }
-                    .padding(10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
                 Text(
-                    languages.find { it.first == currentLang }?.second ?: "한국어"
+                    text = stringResource(R.string.app_name),
+                    modifier = Modifier.align(Alignment.Center),
+                    style = MaterialTheme.typography.titleLarge
                 )
-                Text("▼")
+
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = null,
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                )
             }
 
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
-            ) {
-                languages.forEach { lang ->
-                    DropdownMenuItem(
-                        text = { Text(lang.second) },
-                        onClick = {
-                            saveLanguage(context, lang.first)
-                            setLocale(context, lang.first)
+            Spacer(modifier = Modifier.height(20.dp))
 
-                            // FloatingService에서 읽을 수 있게 언어 이름 저장 추가
-                            val prefs = context.getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
-                            prefs.edit().putString("APP_LANG", lang.second).apply()
+            // 언어 선택
+            Box(modifier = Modifier.width(200.dp)) {
 
-                            (context as? Activity)?.recreate()
+                val currentLang = loadLanguage(context)
 
-                            expanded = false
-                        }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, Color.Gray, RoundedCornerShape(8.dp))
+                        .clickable { expanded = true }
+                        .padding(10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        languages.find { it.first == currentLang }?.second ?: "한국어"
                     )
+                    Text("▼")
+                }
+
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    languages.forEach { lang ->
+                        DropdownMenuItem(
+                            text = { Text(lang.second) },
+                            onClick = {
+                                saveLanguage(context, lang.first)
+                                setLocale(context, lang.first)
+
+                                // FloatingService에서 읽을 수 있게 언어 이름 저장 추가
+                                val prefs =
+                                    context.getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+                                prefs.edit().putString("APP_LANG", lang.second).apply()
+
+                                (context as? Activity)?.recreate()
+
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 설정
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Settings, contentDescription = null)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(stringResource(R.string.settings), fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            SettingToggle(
+                stringResource(R.string.floating_button),
+                floatingOn,
+                purple
+            ) { floatingOn = it }
+            SettingToggle(stringResource(R.string.help_message), helpOn, purple) { helpOn = it }
+            // 옵션3 SettingToggle 삭제---------------------------------------------------------------
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 최근 질문
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Chat, contentDescription = null)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(stringResource(R.string.recent_questions), fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (responses.value.isEmpty()) {
+                QuestionCard(
+                    question = stringResource(R.string.empty_log_title),
+                    answer = stringResource(R.string.empty_log_desc)
+                )
+            } else {
+                responses.value.forEach { (q, a) ->
+                    QuestionCard(q, a)
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // 설정
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Settings, contentDescription = null)
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(stringResource(R.string.settings), fontWeight = FontWeight.Bold)
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        SettingToggle(stringResource(R.string.floating_button), floatingOn, purple) { floatingOn = it }
-        SettingToggle(stringResource(R.string.help_message), helpOn, purple) { helpOn = it }
-        SettingToggle(stringResource(R.string.option3), optionOn, purple) { optionOn = it }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // 최근 질문
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Chat, contentDescription = null)
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(stringResource(R.string.recent_questions), fontWeight = FontWeight.Bold)
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        val questionList = listOf(
-            "질문 1" to "답변 1",
-            "질문 2" to "답변 2",
-            "질문 3" to "답변 3",
-            "질문 4" to "답변 4",
-            "질문 5" to "답변 5",
-            "질문 6" to "답변 6",
-            "질문 7" to "답변 7",
-            "질문 8" to "답변 8"
-        )
-
-        questionList.forEach { (q, a) ->
-            QuestionCard(q, a)
-        }
     }
+    // 수정------------------------------------------------------------------------------------------
 }
 
 @Composable

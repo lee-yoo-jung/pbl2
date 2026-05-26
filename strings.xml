@@ -3,8 +3,9 @@
     <string name="app_name">PBL2</string>
     <string name="help">使用方法</string>
     <string name="settings">设置</string>
-    <string name="floating_button">悬浮按钮</string>
-    <string name="help_message">帮助提示</string>
-    <string name="option3">选项 3</string>
-    <string name="recent_questions">最近的提问</string>
+    <string name="floating_button">引导按钮</string>
+    <string name="help_message">接受向导</string>
+    <string name="recent_questions">最近的问题</string>
+    <string name="empty_log_title">您还没有什么疑问吗？</string>
+    <string name="empty_log_desc">什么都可以随便问！</string>
 </resources>
