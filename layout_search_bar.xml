@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 좌우 여백을 주기 위해 최상위에 FrameLayout을 추가했습니다. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="15dp"
+        android:layout_marginEnd="15dp"
+        android:background="@drawable/bg_search_bar"
+        android:elevation="10dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="8dp">
+
+        <!-- 1. 위치 변경: 닫기 버튼을 왼쪽으로 배치 -->
+        <TextView
+            android:id="@+id/btn_close_search"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="10dp"
+            android:text="닫기"
+            android:textColor="#E91E63"
+            android:textStyle="bold" />
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="24dp"
+            android:layout_marginHorizontal="4dp"
+            android:background="#D3D3D3" />
+
+        <!-- 입력창-->
+        <EditText
+            android:id="@+id/edit_search"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@null"
+            android:hint="질문을 입력하세요..."
+            android:padding="10dp"
+            android:textColor="#000000"
+            android:textSize="16sp" />
+
+        <!-- 마이크 아이콘 (기존 위치 유지) -->
+        <ImageView
+            android:id="@+id/btn_mic"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:src="@android:drawable/ic_btn_speak_now"
+            android:contentDescription="Voice" />
+
+        <!-- 2. 위치 변경: 돋보기 아이콘을 '검색' 글자로 교체 -->
+        <TextView
+            android:id="@+id/btn_send_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:padding="10dp"
+            android:text="검색"
+            android:textColor="#2196F3"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+    </LinearLayout>
+</FrameLayout>

@@ -86,7 +86,7 @@ class FloatingService : Service() {
     private var targetPkgName: String? = null
 
     private var tts: TextToSpeech? = null
-    private var lastTargetPackage: String = "" // 마지막으로 감지된 외부 앱 패키지명
+    private var lastTargetPackage: String = "" // 마지막으로 감지된 외부 앱 패키지명z
 
     data class ClickRange(var start: Pair<Float, Float> = Pair(0f,0f),var end: Pair<Float, Float> = Pair(0f,0f))
     val clicks= ClickRange()
@@ -428,6 +428,28 @@ class FloatingService : Service() {
         val q2 = textBoxView!!.findViewById<TextView>(R.id.rec_q2)
         val q3 = textBoxView!!.findViewById<TextView>(R.id.rec_q3)
         val q4 = textBoxView!!.findViewById<TextView>(R.id.rec_q4)
+
+
+        //[추가] 글자크기 변경-----------------------------------------
+        var currentFontSize = 18f // 초기 크기
+
+        val btnIncrease = textBoxView!!.findViewById<TextView>(R.id.btn_font_increase)
+        val btnDecrease = textBoxView!!.findViewById<TextView>(R.id.btn_font_decrease)
+
+        btnIncrease.setOnClickListener {
+            if (currentFontSize < 30f) { // 최대 크기 제한
+                currentFontSize += 2f
+                contentText.textSize = currentFontSize
+            }
+        }
+
+        btnDecrease.setOnClickListener {
+            if (currentFontSize > 18f) { // 최소 크기 제한
+                currentFontSize -= 2f
+                contentText.textSize = currentFontSize
+            }
+        }
+        //----------------------------------------------
 
         // 텍스트 채우기 및 TTS 재생
         if (message != null) {

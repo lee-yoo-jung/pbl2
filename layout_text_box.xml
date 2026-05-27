@@ -43,44 +43,126 @@
             android:orientation="vertical"
             android:visibility="visible">
 
-            <TextView
-                android:id="@+id/content_text"
+            <!-- [수정] 텍스트 내용에 스크롤 기능 추가 -->
+            <androidx.core.widget.NestedScrollView
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:fillViewport="true">
+
+                <TextView
+                    android:id="@+id/content_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="20dp"
+                    android:paddingTop="20dp"
+                    android:paddingEnd="20dp"
+                    android:paddingBottom="8dp"
+                    android:text="내용이 여기에 표시됩니다."
+                    android:textColor="#333333"
+                    android:textSize="16sp" />
+            </androidx.core.widget.NestedScrollView>
+
+            <!-- 하단 버튼 영역은 그대로 유지 -->
+
+            <!-- [추가] 이전 질문 리스트 표시용 (플로팅버튼 3용) -->
+            <ScrollView
+                android:id="@+id/history_scroll_view"
+                android:layout_width="match_parent"
+                android:layout_height="250dp"
+                android:visibility="gone"
+                android:padding="10dp">
+                <LinearLayout
+                    android:id="@+id/history_list_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+            </ScrollView>
+
+
+
+            <!-- 하단 버튼 영역 (좌측: 하이라이트 & 글자조절, 우측: TTS) -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:paddingStart="20dp"
-                android:paddingTop="20dp"
-                android:paddingEnd="20dp"
-                android:paddingBottom="8dp"
-                android:text="내용이 여기에 표시됩니다."
-                android:textColor="#333333"
-                android:textSize="16sp" />
+                android:orientation="horizontal"
+                android:gravity="bottom"
+                android:paddingBottom="12dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp">
 
-            <!-- 좌측 하단 추천질문 하이라이트 버튼 -->
-            <Button
-                android:id="@+id/btn_highlight"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="start"
-                android:layout_marginStart="16dp"
-                android:layout_marginTop="10dp"
-                android:layout_marginBottom="12dp"
-                android:text="하이라이트 안내"
-                android:textSize="12dp"
-                android:padding="10dp"
-                android:background="@drawable/bg_recommend_btn"
-                android:visibility="visible"/>
+                <!-- 좌측 영역: 하이라이트 버튼과 그 아래 글자 크기 조절 -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
 
-            <!-- 우측 하단 스피커(재생) 아이콘 -->
-            <ImageView
-                android:id="@+id/btn_tts_play"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:layout_gravity="end"
-                android:layout_marginEnd="16dp"
-                android:layout_marginBottom="12dp"
-                android:contentDescription="음성 듣기"
-                android:src="@android:drawable/ic_media_play" />
+                    <!-- 상단: 하이라이트 버튼 -->
+                    <Button
+                        android:id="@+id/btn_highlight"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="하이라이트 안내"
+                        android:textSize="12sp"
+                        android:padding="10dp"
+                        android:background="@drawable/bg_recommend_btn"
+                        android:visibility="visible"
+                        android:layout_marginBottom="8dp"/>
+
+                    <!-- 하단: 글자 크기 조절 영역 -->
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:id="@+id/btn_font_decrease"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:text="-"
+                            android:textSize="20sp"
+                            android:textStyle="bold"
+                            android:gravity="center"
+                            android:textColor="#333333"
+                            android:background="?android:attr/selectableItemBackground" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="글자 크기"
+                            android:textSize="15sp"
+                            android:layout_marginHorizontal="4dp"
+                            android:textColor="#666666"/>
+
+                        <TextView
+                            android:id="@+id/btn_font_increase"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:text="+"
+                            android:textSize="20sp"
+                            android:textStyle="bold"
+                            android:gravity="center"
+                            android:textColor="#333333"
+                            android:background="?android:attr/selectableItemBackground" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- 중앙 여백: TTS 버튼을 오른쪽 끝으로 밀어냄 -->
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1" />
+
+                <!-- 우측 끝: TTS 스피커 아이콘 (글자 조절 영역과 높이가 맞음) -->
+                <ImageView
+                    android:id="@+id/btn_tts_play"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:contentDescription="음성 듣기"
+                    android:padding="4dp"
+                    android:src="@drawable/ic_speaker" />
+            </LinearLayout>
         </LinearLayout>
 
         <!-- 3. 메뉴 3번용 직접 질문 -->
