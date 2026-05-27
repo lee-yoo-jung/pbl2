@@ -63,23 +63,6 @@
                     android:textSize="16sp" />
             </androidx.core.widget.NestedScrollView>
 
-            <!-- 하단 버튼 영역은 그대로 유지 -->
-
-            <!-- [추가] 이전 질문 리스트 표시용 (플로팅버튼 3용) -->
-            <ScrollView
-                android:id="@+id/history_scroll_view"
-                android:layout_width="match_parent"
-                android:layout_height="250dp"
-                android:visibility="gone"
-                android:padding="10dp">
-                <LinearLayout
-                    android:id="@+id/history_list_container"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical" />
-            </ScrollView>
-
-
 
             <!-- 하단 버튼 영역 (좌측: 하이라이트 & 글자조절, 우측: TTS) -->
             <LinearLayout

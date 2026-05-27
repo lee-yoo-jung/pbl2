@@ -86,7 +86,7 @@ class FloatingService : Service() {
     private var targetPkgName: String? = null
 
     private var tts: TextToSpeech? = null
-    private var lastTargetPackage: String = "" // 마지막으로 감지된 외부 앱 패키지명z
+    private var lastTargetPackage: String = "" // 마지막으로 감지된 외부 앱 패키지명
 
     data class ClickRange(var start: Pair<Float, Float> = Pair(0f,0f),var end: Pair<Float, Float> = Pair(0f,0f))
     val clicks= ClickRange()
@@ -429,7 +429,6 @@ class FloatingService : Service() {
         val q3 = textBoxView!!.findViewById<TextView>(R.id.rec_q3)
         val q4 = textBoxView!!.findViewById<TextView>(R.id.rec_q4)
 
-
         //[추가] 글자크기 변경-----------------------------------------
         var currentFontSize = 18f // 초기 크기
 
@@ -450,6 +449,7 @@ class FloatingService : Service() {
             }
         }
         //----------------------------------------------
+
 
         // 텍스트 채우기 및 TTS 재생
         if (message != null) {
@@ -618,7 +618,7 @@ class FloatingService : Service() {
                 textContentLayout.visibility = View.GONE
                 buttonContainer.visibility = View.VISIBLE
                 recommendContainer?.visibility = View.GONE
-
+/*
                 val btnDirect = textBoxView!!.findViewById<View>(R.id.btn_ask_question)
 
                 btnDirect.setOnClickListener {
@@ -630,6 +630,8 @@ class FloatingService : Service() {
                     }
                     showSearchBar()
                 }
+                */
+
             }
             "RECOMMEND" -> {
                 textContentLayout.visibility = View.GONE
@@ -640,6 +642,8 @@ class FloatingService : Service() {
                 textContentLayout.visibility = View.VISIBLE
                 buttonContainer.visibility = View.GONE
                 recommendContainer?.visibility = View.GONE
+                //추가-----------------------------
+                if (message != null) contentText.text = message.trim()
             }
         }
 
@@ -659,45 +663,166 @@ class FloatingService : Service() {
         )
         boxParams.gravity = Gravity.CENTER
 
-        // 버튼 클릭 이벤트 처리
-        textBoxView!!.findViewById<View>(R.id.btn_close_text_box).setOnClickListener {
+
+        // 1. 닫기 버튼 (공통)
+        textBoxView?.findViewById<View>(R.id.btn_close_text_box)?.setOnClickListener {
             closeTextBox()
         }
 
-        textBoxView!!.findViewById<View>(R.id.btn_ask_question).setOnClickListener {
-            // 검색창을 띄우기 전, 현재 화면의 패키지명을 미리 저장
+        // 2. 직접 질문하기 버튼 (ASK 모드 및 RECOMMEND 모드 하단에 있을 경우)
+        textBoxView?.findViewById<View>(R.id.btn_ask_question)?.setOnClickListener {
             val currentPkg = MyAccessibilityService.instance?.rootInActiveWindow?.packageName?.toString() ?: ""
             if (currentPkg.isNotEmpty() && currentPkg != "com.example.pbl2") {
                 lastTargetPackage = currentPkg
             }
-
             closeMenu()
             closeTextBox()
             showSearchBar()
         }
 
+        // 3. 이전 질문 보기 버튼 (에러 발생 지점 수정)
+        // findViewById 앞에 세이프콜(?.)을 사용하거나 변수 타입을 명시하여 안전하게 처리합니다.
+        val btnViewHistory = textBoxView?.findViewById<TextView>(R.id.btn_view_history)
+        btnViewHistory?.setOnClickListener {
+            closeTextBox()
+            showHistoryBox()
+        }
+
+        // 4. 추천 질문 리스트 (q1~q4) 클릭 리스너
         val onRecommendClickListener = View.OnClickListener { view ->
             val clickedQuestion = (view as TextView).text.toString()
             Toast.makeText(this, "'$clickedQuestion' 질문을 전송합니다...", Toast.LENGTH_SHORT).show()
             closeTextBox()
-
             val pkg = MyAccessibilityService.instance?.rootInActiveWindow?.packageName?.toString() ?: ""
-
-            // 기존 sendToServer 대신 캡처 실행!
             launchCaptureActivity(clickedQuestion, pkg)
         }
-
 
         q1.setOnClickListener(onRecommendClickListener)
         q2.setOnClickListener(onRecommendClickListener)
         q3.setOnClickListener(onRecommendClickListener)
         q4.setOnClickListener(onRecommendClickListener)
 
-
+        // 뷰 추가 및 애니메이션
         windowManager.addView(textBoxView, boxParams)
-        textBoxView!!.startAnimation(AlphaAnimation(0f, 1f).apply { duration = 300 })
+        textBoxView?.startAnimation(AlphaAnimation(0f, 1f).apply { duration = 300 })
     }
 
+    private fun showHistoryBox() {
+        //1. 레이아웃 인플레이트
+        val contextThemeWrapper = ContextThemeWrapper(this, R.style.Theme_PBL2)
+
+        // 2. 테마가 적용된 컨텍스트로부터 레이아웃 인플레이트 (한 번만 수행)
+        val historyView = LayoutInflater.from(contextThemeWrapper).inflate(R.layout.layout_history_box, null)
+
+        // 3. 인플레이트된 뷰(historyView)에서 내부 요소들을 찾음
+        val listContainer = historyView.findViewById<LinearLayout>(R.id.history_list_container)
+        val btnClose = historyView.findViewById<View>(R.id.btn_close_history)
+        // 2. 더미 데이터 생성
+        val dummyQuestions = listOf(
+            "카톡에서 친구 추가하는\n방법을 알려줘",
+            "담은 상품들이 어디에 있나요?",
+            "주문을 취소하고 싶어요",
+            "배송 현황을 알고 싶어요",
+            "로그아웃은 어디서 하나요?"
+        )
+
+        // 3. 리스트 아이템 추가 (디자인 적용)
+        dummyQuestions.forEach { question ->
+            // RecommendButtonStyle과 bg_recommend_btn을 적용한 TextView 생성
+            val itemView = TextView(this).apply {
+                text = question
+                textSize = 15f
+                setTextColor(Color.BLACK)
+                gravity = Gravity.CENTER
+
+                // 하얀 타원형 배경 적용
+                setBackgroundResource(R.drawable.bg_recommend_btn)
+
+                val params = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                params.setMargins(0, 0, 0, 25) // 버튼 사이 간격
+                layoutParams = params
+
+                setPadding(40, 45, 40, 45) // 내부 여백
+
+                setOnClickListener {                    // 1. 현재 떠있는 리스트 창(historyView) 닫기
+                    try {
+                        windowManager.removeView(historyView)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+
+                    // 2. 상세 답변 더미 데이터 생성 (나중에 서버 데이터로 교체 가능)
+                    val dummyAnswer = "이것은 '$question'에 대한 상세 답변 내용입니다.\n\n" +
+                            "Gemini 답변 예시:\n" +
+                            "1. 먼저 해당 메뉴로 이동하세요.\n" +
+                            "2. 버튼을 눌러 설정을 완료합니다.\n\n" +
+                            "내용이 길어지면 이 영역은 자동으로 스크롤이 가능해집니다. " +
+                            "흰색 박스 디자인이 적용된 상세 페이지입니다."
+
+                    // 3. 방금 만든 상세 창(showHistoryDetailBox) 호출
+                    showHistoryDetailBox(question, dummyAnswer)
+                }
+            }
+            listContainer.addView(itemView)
+        }
+
+        // 4. 닫기 버튼 설정
+        btnClose.setOnClickListener {
+            try { windowManager.removeView(historyView) } catch (e: Exception) {}
+        }
+
+        // 5. WindowManager 설정 및 표시
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            else
+                WindowManager.LayoutParams.TYPE_PHONE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        )
+        params.gravity = Gravity.CENTER
+
+        windowManager.addView(historyView, params)
+        historyView.startAnimation(AlphaAnimation(0f, 1f).apply { duration = 300 })
+    }
+
+    private fun showHistoryDetailBox(question: String, answer: String) {
+        val contextThemeWrapper = ContextThemeWrapper(this, R.style.Theme_PBL2)
+        val detailView = LayoutInflater.from(contextThemeWrapper).inflate(R.layout.layout_history_detail, null)
+
+        val tvQuestion = detailView.findViewById<TextView>(R.id.tv_detail_question)
+        val tvAnswer = detailView.findViewById<TextView>(R.id.tv_detail_answer)
+        val btnClose = detailView.findViewById<View>(R.id.btn_close_detail)
+
+        // 데이터 세팅
+        tvQuestion.text = question
+        tvAnswer.text = answer
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            else
+                WindowManager.LayoutParams.TYPE_PHONE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        )
+        params.gravity = Gravity.CENTER
+
+        // 닫기 버튼 리스너
+        btnClose.setOnClickListener {
+            try { windowManager.removeView(detailView) } catch (e: Exception) {}
+        }
+
+        windowManager.addView(detailView, params)
+        detailView.startAnimation(AlphaAnimation(0f, 1f).apply { duration = 300 })
+    }
 
     private fun showSearchBar() {
 
@@ -710,10 +835,10 @@ class FloatingService : Service() {
             searchBarView!!.findViewById<EditText>(R.id.edit_search)
 
         val btnSendText =
-            searchBarView!!.findViewById<ImageView>(R.id.btn_send_text)
+            searchBarView!!.findViewById<View>(R.id.btn_send_text)
 
         val btnMic =
-            searchBarView!!.findViewById<ImageView>(R.id.btn_mic)
+            searchBarView!!.findViewById<View>(R.id.btn_mic)
 
         val btnClose =
             searchBarView!!.findViewById<View>(R.id.btn_close_search)
@@ -730,8 +855,6 @@ class FloatingService : Service() {
                 launchCaptureActivity(question, pkg)
             }
         }
-
-
 
         // 2. 마이크 버튼 클릭 시: 음성 인식(STT) 시작
         btnMic.setOnClickListener {
@@ -1065,7 +1188,7 @@ class FloatingService : Service() {
                 val currentLang = getCurrentLanguage() // 추가됨
 
                 // request 포장에 언어 추가
-                val request = QuestionRequest(text, mode, base64Image, packageName, currentLang)
+                val request = QuestionRequest(UserSession.userId,text, mode, base64Image, packageName, currentLang)
                 val response = RetrofitClient.api.askQuestion(request)
 
                 if (response.isSuccessful) {
@@ -1127,19 +1250,4 @@ class FloatingService : Service() {
         val prefs = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
         return prefs.getString("APP_LANG", "한국어") ?: "한국어"
     }
-
-
 }
-
-/*
-val customButton = findViewById<Button>(R.id.btn_custom_action)
-
-// 필요할 때 표시
-customButton.visibility = View.VISIBLE
-
-customButton.setOnClickListener {
-
-    // 버튼 클릭 시 동작
-    Toast.makeText(this, "버튼 클릭!", Toast.LENGTH_SHORT).show()
-}
-*/
