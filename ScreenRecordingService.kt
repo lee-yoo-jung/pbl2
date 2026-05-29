@@ -28,16 +28,13 @@ import kotlin.getValue
 import kotlinx.coroutines.Dispatchers
 import kotlin.jvm.java
 import kotlin.to
-import com.example.pbl2.RetrofitClient
+import com.example.pbl2.backend.RetrofitClient
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import android.util.Base64
 import java.io.ByteArrayOutputStream
-import com.example.pbl2.QuestionRequest
-import java.io.File
-import java.io.FileOutputStream
-import java.util.Locale
+import com.example.pbl2.backend.QuestionRequest
 import android.content.Context
+import com.example.pbl2.backend.UserSession
 
 // 사용자가 허용한 화면 캡쳐 권한을 이용해서, 화면을 녹화한 뒤 이미지를 OCR 실행하는 포그라운드 코드
 @Parcelize // 데이터를 다른 Activity로 전달하기 위한 도구
@@ -259,9 +256,13 @@ class ScreenRecordService: Service() {
 
                 // "DIRECT" (직접 질문/추천 질문) 모드 실행
                 if (mode == "DIRECT" && hasCaptured ) {
+
                     if (currentPackage == null || currentPackage == "com.example.pbl2") {
                         return@setOnImageAvailableListener
                     }
+
+                    val fixedPackage = currentPackage
+
                     val now = System.currentTimeMillis()
                     if (now - recordingStartTime < initialDelay) return@setOnImageAvailableListener
 
@@ -269,10 +270,9 @@ class ScreenRecordService: Service() {
                     stopRecording()
 
                     val qText = questionText ?: ""
-                    val pkgName = targetPkgName ?: ""
 
                     // 1. 질문과 캡쳐 이미지를 보내서 1,2,3 단계별 답변 받아오기
-                    sendToServer(qText, "direct", bitmap, pkgName) { answer ->
+                    sendToServer(qText, "direct", bitmap, fixedPackage) { answer ->
                         Log.d("DIRECT_RESULT", "받은 답변: $answer")
 
                         // 정규식을 써서 답변 중에 "1. ~~~~" 문장만 떼어내기
@@ -282,7 +282,7 @@ class ScreenRecordService: Service() {
                         Log.d("DIRECT_RESULT", "추출된 1단계: $step1")
 
                         // 2. 떼어낸 1단계 문장 + 캡쳐 이미지를 다시 보내서 좌표(guide) 요청
-                        sendToServer(step1, "guide", bitmap, pkgName) { coordsJson ->
+                        sendToServer(step1, "guide", bitmap, fixedPackage) { coordsJson ->
                             Log.d("DIRECT_RESULT", "받은 좌표: $coordsJson")
                             // 3. 답변 내용과 좌표를 UI(FloatingService)로 같이 쏴주기
                             sendResultToUI(answer, coordsJson)
@@ -292,7 +292,6 @@ class ScreenRecordService: Service() {
                     stopService()
                     return@setOnImageAvailableListener
                 }
-                //saveBitmap(bitmap)  // 현재 캡쳐된 화면을 실제로 확인하려면 saveBitmap 실행(주석 제거)
 
 
                 if (selectedOCR && !hasProcessedOCR) {
@@ -313,64 +312,27 @@ class ScreenRecordService: Service() {
             }
         }, Handler(Looper.getMainLooper()))
     }
-    /* 현재 캡쳐된 화면을 실제로 볼려면 saveBitmap 실행(주석 제거)
-    private fun saveBitmap(bitmap: Bitmap) {
-        val file = File(
-            getExternalFilesDir(null),
-            "capture_${System.currentTimeMillis()}.png"
-        )
-        val outputStream = FileOutputStream(file)
-        bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
-        outputStream.flush()
-        outputStream.close()
-        Log.d("OnlyCapture", "저장 위치: ${file.absolutePath}")
-    }*/
 
     // 비트맵 변환 및 스크롤 기반 OCR 실행
     private fun processLongImage(image: Image) {
         val now = System.currentTimeMillis()
+
         if (now - recordingStartTime < initialDelay) return
-        val bitmap = imageToBitmap(image) ?: return   // 비트맵으로 변환
 
-        val scrolling = isScrolling()
-        // 스크롤 중
-        if (scrolling) {
-            noScrollStartTime = 0L    // 스크롤 중이면 타이머 초기화
-            finalOcr = false
-            if (now - lastOcrTime > scrollDelay || lastOcrTime == 0L) {
-                lastOcrTime = now
-                val safeConfig = bitmap.config ?: Bitmap.Config.ARGB_8888
-                val bitmapToProcess = bitmap.copy(safeConfig, false)
-                val rectCopy = Rect(targetRect)
-                OCR.process(bitmapToProcess, rectCopy) { ocrText, errorBitmap ->
-                    bitmapToProcess.recycle()
-                }
+        val bitmap = imageToBitmap(image) ?: return
+        val finalBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false)
+
+        OCR.process(finalBitmap, targetRect) { ocrText, errorBitmap ->
+
+            sendToServer(ocrText, "summary", errorBitmap) { answer ->
+
+                Log.d("API_RESULT", answer)
+
+                sendResultToUI(answer)
             }
-        } else {
-            lastOcrTime = 0L
-            if (noScrollStartTime == 0L) {
-                noScrollStartTime = now
-            }
-            if (now - noScrollStartTime > noScrollTime && !finalOcr) {
-                finalOcr = true
-                val safeConfig = bitmap.config ?: Bitmap.Config.ARGB_8888
-                val finalBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false)
 
-                OCR.process(finalBitmap, targetRect) { ocrText, errorBitmap ->
-
-                    sendToServer(ocrText, "summary", errorBitmap) { answer ->
-
-                        Log.d("API_RESULT", answer)
-
-                        // 여기서 UI로 보내야 함
-                        sendResultToUI(answer)
-                    }
-
-                    stopRecording()
-                }
-            }
+            stopRecording()
         }
-        return
     }
 
     // <부분 화면> 비트맵 변환 및 캡쳐 화면 미리보기 및 부분 영역 OCR 실행
@@ -423,12 +385,6 @@ class ScreenRecordService: Service() {
 
         // 실제 필요한 영역만 잘라서 반환
         return Bitmap.createBitmap(bitmap, 0, 0, width, height)
-    }
-
-    // 스크롤 여부 판단 함수
-    private fun isScrolling(): Boolean {
-        val now = System.currentTimeMillis()
-        return (now - ScrollState.lastScrollTime) < scrollDelay
     }
 
     // 녹화 종료
@@ -511,7 +467,7 @@ class ScreenRecordService: Service() {
                 val currentLang = getCurrentLanguage() // 추가됨
 
                 // request 포장에 언어 추가
-                val request = QuestionRequest(text, mode, base64Image, packageName, currentLang)
+                val request = QuestionRequest(UserSession.userId, text, mode, base64Image, packageName, currentLang)
                 val response = RetrofitClient.api.askQuestion(request)
 
                 if (response.isSuccessful) {
@@ -563,6 +519,4 @@ class ScreenRecordService: Service() {
         val prefs = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
         return prefs.getString("APP_LANG", "한국어") ?: "한국어"
     }
-
-
 }
