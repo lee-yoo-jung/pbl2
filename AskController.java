@@ -1,5 +1,5 @@
 package com.example.server;
-
+import com.example.server.database.LlmService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.*;
@@ -8,40 +8,88 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Map;
+import java.util.*;
 
+@CrossOrigin(origins = "*")
 @RestController
 public class AskController {
 
-    @Value("${gemini.api.key}")
+    private final LlmService llmService;
+
+    @Value("${llm.api.key}")
     private String apiKey;
+
+    public AskController(LlmService llmService) {
+        this.llmService = llmService;
+    }
 
     // 1. 안드로이드에서 보낸 데이터를 받을 그릇(클래스) 만들기
     public static class QuestionRequest {
+        private String userId;
         private String question;
         private String mode;
         private String imageBase64;
         private String packageName;
         private String language;
-        public String getLanguage() { return language; }
-        public void setLanguage(String language) { this.language = language; }
 
-        public String getQuestion() { return question; }
-        public void setQuestion(String question) { this.question = question; }
-        public String getMode() { return mode; }
-        public void setMode(String mode) { this.mode = mode; }
-        public String getImageBase64() { return imageBase64; }
-        public void setImageBase64(String imageBase64) { this.imageBase64 = imageBase64; }
-        public String getPackageName() { return packageName; }
-        public void setPackageName(String packageName) { this.packageName = packageName; }
+        public String getUserId() {
+            return userId;
+        }
+
+        public void setUserId(String userId) {
+            this.userId = userId;
+        }
+
+        public String getLanguage() {
+            return language;
+        }
+
+        public void setLanguage(String language) {
+            this.language = language;
+        }
+
+        public String getQuestion() {
+            return question;
+        }
+
+        public void setQuestion(String question) {
+            this.question = question;
+        }
+
+        public String getMode() {
+            return mode;
+        }
+
+        public void setMode(String mode) {
+            this.mode = mode;
+        }
+
+        public String getImageBase64() {
+            return imageBase64;
+        }
+
+        public void setImageBase64(String imageBase64) {
+            this.imageBase64 = imageBase64;
+        }
+
+        public String getPackageName() {
+            return packageName;
+        }
+
+        public void setPackageName(String packageName) {
+            this.packageName = packageName;
+        }
     }
+
+    RestTemplate restTemplate = new RestTemplate();
 
     // 2. GET에서 POST 방식으로 변경하고, @RequestBody로 데이터 받기
     @PostMapping("/ask")
     public Map<String, String> ask(@RequestBody QuestionRequest request) {
+
         String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=" + apiKey;
-        RestTemplate restTemplate = new RestTemplate();
 
         String finalPrompt;
 
@@ -96,21 +144,48 @@ public class AskController {
                     "설명을 받는 대상은 디지털 취약계층입니다. 노인, 외국인, 어린이 등이 이해하기 쉬운 단어를 사용하세요.\n" +
                     "별표(*)나 우물 정(#) 같은 특수문자를 사용하여 단어를 강조하지 마세요. 대괄호([, ])를 사용하여 단어를 강조하고, 나머지 문장은 마크다운 기호 없이 평문으로만 대답하세요.\n";
         } else if ("guide".equals(request.getMode())) {
-            // guide 모드는 좌표 전송용이므로 개조식/서술식 구분이 필요 없으므로 기존 유지
-            finalPrompt = "첨부된 현재 모바일 앱 화면 이미지를 분석해서," +
-                    "아래 \"지시사항\"을 수행하기 위해 사용자가 실제로 터치해야 하는 UI 요소의 중심 좌표(x, y)를 찾으세요.\n" +
+            finalPrompt = "첨부된 현재 모바일 앱 화면 이미지와 아래 지시사항을 함께 분석하라.\n" +
+
+                    "지시사항은 두 가지 형태일 수 있다.\n" +
+                    "1. 단일 행동 문장 (예: '[회원가입] 버튼을 누르세요')\n" +
+                    "2. 여러 단계로 이루어진 전체 안내문\n\n" +
+
+                    "만약 지시사항이 단일 행동 문장이라면:\n" +
+                    "- 해당 문장을 그대로 수행하기 위해 필요한 UI 요소를 찾으라.\n" +
+                    "- 현재 화면에서 그 행동을 수행할 수 있는 버튼, 메뉴, 입력창 등을 선택하라.\n" +
+                    "- 이미 문장에 버튼 이름이 포함되어 있다면 해당 버튼을 우선적으로 찾으라.\n" +
+                    "- 현재 화면에서 수행 가능한 가장 직접적인 UI 요소 하나만 선택하라.\n\n" +
+                    "- 선택한 UI 요소의 정중앙 좌표(x, y)를 반환하라.\n\n" +
+
+                    "만약 지시사항이 여러 단계로 이루어진 전체 안내문이라면:\n" +
+                    "- 현재 화면 상태를 분석하라.\n" +
+                    "- 전체 안내문 중 현재 화면에서 수행해야 하는 단계가 무엇인지 판단하라.\n" +
+                    "- 이미 완료된 단계는 건너뛰어라.\n" +
+                    "- 아직 수행되지 않은 단계 중 현재 화면에서 수행 가능한 가장 적절한 다음 단계를 선택하라.\n" +
+                    "- 선택한 단계를 수행하기 위해 터치해야 하는 UI 요소를 찾으라.\n\n" +
+                    "- 선택한 UI 요소의 정중앙 좌표(x, y)를 반환하라.\n\n" +
+
+                    "만약 현재 화면이 전체 안내문과 전혀 맞지 않는다면:\n" +
+                    "- 사용자가 해당 안내를 진행하기 위해 이동해야 하는 화면 또는 앱을 추론하라.\n" +
+                    "- 현재 화면에서 그 앱, 메뉴, 검색창, 홈 버튼 또는 이동 버튼에 해당하는 가장 적절한 UI 요소를 선택하라.\n" +
+                    "- 예를 들어 은행 앱 사용 안내인데 현재 홈 화면이라면 해당 은행 앱 아이콘을 선택할 수 있다.\n" +
+                    "- 쇼핑 앱 주문 안내인데 현재 다른 메뉴라면 주문내역 또는 홈 탭으로 이동하는 버튼을 선택할 수 있다.\n\n" +
+                    "- 선택한 UI 요소의 정중앙 좌표(x, y)를 반환하라.\n\n" +
+
                     "매우 중요:\n" +
                     "- 반드시 첨부된 실제 이미지의 UI 위치를 기준으로 판단해라.\n" +
-                    "- 현재 화면에 실제로 보이는 버튼만 선택해라.\n" +
-                    "- 여러 후보가 있으면 가장 가능성이 높은 버튼 하나만 선택해라.\n" +
-                    "- 버튼 전체 영역의 \"정중앙 좌표\"를 반환해라.\n" +
+                    "- 현재 화면에 실제로 보이는 UI만 선택해라.\n" +
+                    "- 여러 후보가 있으면 가장 가능성이 높은 하나만 선택해라.\n" +
+                    "- 버튼 전체 영역의 정중앙 좌표를 반환해라.\n" +
                     "- 화면 전체 기준 좌표를 사용해라.\n" +
-                    "- 첨부된 원본 이미지 해상도 기준 좌표를 사용해라.\n" +
-                    "- 상태바/네비게이션바를 포함한 전체 이미지 기준이다.\n" +
-                    "- 설명, 분석, 문장, 마크다운을 절대 출력하지 마라.\n" +
-                    "- 반드시 JSON만 출력해라.\n" +
+                    "- 원본 이미지 해상도 기준 좌표를 사용해라.\n" +
+                    "- 상태바와 네비게이션바를 포함한 전체 이미지 기준이다.\n" +
+                    "- 설명, 분석, 이유를 출력하지 마라.\n" +
+                    "- 반드시 JSON만 출력해라.\n\n" +
+
                     "반환 형식:\n" +
-                    "{\"x\":420,\"y\":1630}\n" +
+                    "{\"x\":420,\"y\":1630}\n\n" +
+
                     "지시사항:\n" +
                     request.getQuestion();
         } else {
@@ -150,11 +225,26 @@ public class AskController {
         if (targetLang.equals("English")) instruction = "English";
         else if (targetLang.equals("日本語")) instruction = "Japanese";
         else if (targetLang.equals("中文")) instruction = "Chinese";
+        else if (targetLang.equals("Tiếng Việt") || targetLang.equals("Vietnamese")) instruction = "Vietnamese";
         else instruction = "Korean";
 
         finalPrompt = finalPrompt + "\n\n" +
-                "[SYSTEM RULE: You must provide the entire response in " + instruction + " ONLY. " +
-                "Do not use any other languages. This is a strict requirement.]";
+                "IMPORTANT LANGUAGE RULE:\n" +
+                "- You MUST write ALL explanations, descriptions, and instructions in " + instruction + ".\n" +
+                "- Do NOT use Korean except for UI element names visible on the screen.\n" +
+                "- UI element names must remain exactly as shown and be wrapped in square brackets.\n" +
+                "- Example (English): Press [가입].\n" +
+                "- Example (Japanese): [가입]を押してください。\n" +
+                "- Example (Chinese): 请点击[가입]。\n" +
+                "- Example (Vietnamese): Hãy nhấn [가입].\n" +
+                "- If you output Korean outside of square brackets, your answer is incorrect.";
+
+        if (!instruction.equals("Korean")) {
+            finalPrompt += "\n\n" +
+                    "FINAL CHECK:\n" +
+                    "Translate your entire answer into " + instruction + ".\n" +
+                    "Only keep Korean text inside square brackets when it is a UI element name.\n";
+        }
 
         try {
             // 3. 제미나이에게 보낼 JSON을 안전하게 만들기 (ObjectMapper 사용)
@@ -195,11 +285,127 @@ public class AskController {
                     .path("text")
                     .asText();
 
+            // 6. DB 저장
+            llmService.saveLog(
+                    request.getUserId(),
+                    request.getPackageName(),
+                    request.getQuestion(),
+                    text,
+                    request.getMode()
+            );
             return Map.of("answer", text);
 
         } catch (Exception e) {
             e.printStackTrace();
             return Map.of("answer", "서버 에러 발생: " + e.getMessage());
+        }
+    }
+
+
+    // 음성인식 STT
+    @PostMapping("/api/gemini/analyze-voice")
+    public ResponseEntity<String> analyzeVoice(
+            @RequestParam("audioFile") MultipartFile audioFile,
+            @RequestParam("currentAppPkg") String currentAppPkg) {
+
+        if (audioFile == null || audioFile.isEmpty()) {
+            return ResponseEntity.status(400).body("오디오 파일이 유효하지 않습니다.");
+        }
+
+        try {
+            String myRealKey = apiKey;
+            String voiceUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=" + myRealKey;
+            RestTemplate voiceRestTemplate = new RestTemplate();
+
+            byte[] audioBytes = audioFile.getBytes();
+            String base64Audio = Base64.getEncoder().encodeToString(audioBytes);
+
+            // 목소리 입력 LLM 프롬포트
+            String promptText =
+                    "{\\n" +
+                    "  \\\"question\\\": \\\"음성에서 인식한 한국어 내용\\\",\\n" +
+                    "  \\\"actionDescription\\\": \\\"O\\\",\\n" +
+                    "  \\\"targetButton\\\": \\\"하이라이트 해야 할 버튼 이름\\\",\\n" +
+                    "  \\\"coordinateX\\\": 540,\\n" +
+                    "  \\\"coordinateY\\\": 1280\\n" +
+                    "}";
+
+            // JSON 맵 데이터 구축
+            Map<String, Object> inlineData = new HashMap<>();
+            inlineData.put("mimeType", "audio/mp3");
+            inlineData.put("data", base64Audio);
+
+            Map<String, Object> audioPart = new HashMap<>();
+            audioPart.put("inlineData", inlineData);
+
+            Map<String, Object> textPart = new HashMap<>();
+            textPart.put("text", promptText);
+
+            List<Map<String, Object>> partsList = new ArrayList<>();
+            partsList.add(audioPart);
+            partsList.add(textPart);
+
+            Map<String, Object> contentMap = new HashMap<>();
+            contentMap.put("parts", partsList);
+
+            List<Map<String, Object>> contentsList = new ArrayList<>();
+            contentsList.add(contentMap);
+
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("contents", contentsList);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
+            ResponseEntity<String> response = voiceRestTemplate.postForEntity(voiceUrl, entity, String.class);
+
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode rootNode = mapper.readTree(response.getBody());
+
+            String textResult = rootNode.path("candidates")
+                    .path(0)
+                    .path("content")
+                    .path("parts")
+                    .path(0)
+                    .path("text")
+                    .asText();
+
+            textResult = textResult.replace("```json", "").replace("```", "").replace("\\\"", "\"").trim();
+
+            String finalCleanJson = textResult;
+            try {
+                com.fasterxml.jackson.databind.JsonNode cleanNode = mapper.readTree(textResult);
+                String userSpeech = "";
+                if (cleanNode.has("question")) userSpeech = cleanNode.get("question").asText();
+                else if (cleanNode.has("sttText")) userSpeech = cleanNode.get("sttText").asText();
+                else if (cleanNode.has("text")) userSpeech = cleanNode.get("text").asText();
+
+                String actionDesc = cleanNode.path("actionDescription").asText();
+                String targetBtn = cleanNode.path("targetButton").asText();
+                int x = cleanNode.path("coordinateX").asInt(540);
+                int y = cleanNode.path("coordinateY").asInt(1280);
+
+                finalCleanJson = String.format(
+                        "{\"question\":\"%s\",\"actionDescription\":\"%s\",\"targetButton\":\"%s\",\"coordinateX\":%d,\"coordinateY\":%d}",
+                        userSpeech.replace("\"", "\\\""),
+                        actionDesc.replace("\"", "\\\""),
+                        targetBtn.replace("\"", "\\\""),
+                        x, y
+                );
+            } catch (Exception jsonEx) {
+                System.err.println(jsonEx.getMessage());
+            }
+
+            System.out.println(finalCleanJson);
+
+            return ResponseEntity.ok()
+                    .contentType(org.springframework.http.MediaType.valueOf("text/plain;charset=UTF-8"))
+                    .body(finalCleanJson);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("서버 음성 가이드 분석 실패: " + e.getMessage());
         }
     }
 }

@@ -21,8 +21,8 @@
 
             <TextView
                 android:id="@+id/btn_close_text_box"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:layout_alignParentEnd="true"
                 android:background="@null"
                 android:gravity="center"
@@ -43,7 +43,7 @@
             android:orientation="vertical"
             android:visibility="visible">
 
-            <!-- [수정] 텍스트 내용에 스크롤 기능 추가 -->
+            <!--  텍스트 내용에 스크롤 기능  -->
             <androidx.core.widget.NestedScrollView
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
@@ -60,9 +60,8 @@
                     android:paddingBottom="8dp"
                     android:text="내용이 여기에 표시됩니다."
                     android:textColor="#333333"
-                    android:textSize="16sp" />
+                    android:textSize="20sp" />
             </androidx.core.widget.NestedScrollView>
-
 
             <!-- 하단 버튼 영역 (좌측: 하이라이트 & 글자조절, 우측: TTS) -->
             <LinearLayout
@@ -86,7 +85,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="하이라이트 안내"
-                        android:textSize="12sp"
+                        android:textSize="18sp"
                         android:padding="10dp"
                         android:background="@drawable/bg_recommend_btn"
                         android:visibility="visible"
@@ -104,26 +103,28 @@
                             android:layout_width="32dp"
                             android:layout_height="32dp"
                             android:text="-"
-                            android:textSize="20sp"
+                            android:layout_marginBottom="5dp"
+                            android:textSize="32sp"
                             android:textStyle="bold"
                             android:gravity="center"
                             android:textColor="#333333"
                             android:background="?android:attr/selectableItemBackground" />
 
                         <TextView
+                            android:id="@+id/tv_font_size_label"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="글자 크기"
-                            android:textSize="15sp"
+                            android:textSize="20sp"
                             android:layout_marginHorizontal="4dp"
-                            android:textColor="#666666"/>
+                            android:textColor="#333333"/>
 
                         <TextView
                             android:id="@+id/btn_font_increase"
                             android:layout_width="32dp"
                             android:layout_height="32dp"
                             android:text="+"
-                            android:textSize="20sp"
+                            android:textSize="25sp"
                             android:textStyle="bold"
                             android:gravity="center"
                             android:textColor="#333333"
@@ -140,8 +141,8 @@
                 <!-- 우측 끝: TTS 스피커 아이콘 (글자 조절 영역과 높이가 맞음) -->
                 <ImageView
                     android:id="@+id/btn_tts_play"
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
+                    android:layout_width="46dp"
+                    android:layout_height="46dp"
                     android:contentDescription="음성 듣기"
                     android:padding="4dp"
                     android:src="@drawable/ic_speaker" />

@@ -512,10 +512,10 @@ class ScreenRecordService: Service() {
         sendBroadcast(intent)
     }
 
-    private fun getCurrentLanguage(): String {// 1. 서비스가 시작될 때 전달받은 언어가 있다면 그것을 사용
+    // 서비스가 시작될 때 전달받은 언어가 있다면 그것을 사용, 없다면 설정값에서 가져옴
+    private fun getCurrentLanguage(): String {
         if (!targetLang.isNullOrEmpty()) return targetLang!!
 
-        // 2. 없다면 설정값에서 가져옴
         val prefs = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
         return prefs.getString("APP_LANG", "한국어") ?: "한국어"
     }
