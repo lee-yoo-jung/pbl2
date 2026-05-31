@@ -38,11 +38,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.util.Base64
 import java.io.ByteArrayOutputStream
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import android.widget.EditText
-import android.os.Bundle
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import com.example.pbl2.access_ocr.highlight_Controller
@@ -62,9 +58,10 @@ import kotlin.collections.toMutableList
 
 
 class FloatingService : Service() {
+    private var ToastMessage:String?=null
+    private var recentLog: LlmlogResponse?=null
     private var currentAudioFile: File? = null
     private val recorder by lazy { AudioRecorder(cacheDir) }
-
     private var overlayView: View? = null
     private var selectionRect: Rect?=null
     private val serviceScope = CoroutineScope(Dispatchers.Default + Job())
@@ -113,13 +110,10 @@ class FloatingService : Service() {
             val result = intent?.getStringExtra("result")
             val coords = intent?.getStringExtra("coords") // 좌표값 문자열
 
-            if (result != null) {
+            if (!result.isNullOrBlank()) {
                 Handler(Looper.getMainLooper()).post {
                     var x: Float? = null
                     var y: Float? = null
-
-                    // UI에는 답변 텍스트만 띄움
-                    showTextBox(mode = "TEXT", shouldCloseMenu = true, message = result)
 
                     // 좌표값은 화면에 띄우지 않고 로그로만 남김
                     if (coords != null) {
@@ -137,6 +131,24 @@ class FloatingService : Service() {
                         y = y
                     )
                 }
+            }else{
+                Handler(Looper.getMainLooper()).post {
+                    var x: Float? = null
+                    var y: Float? = null
+
+                    if (coords != null) {
+                        Log.d("HIGHLIGHT_COORDS", "좌표: $coords")
+                        // 좌표 파싱
+                        val json = JSONObject(coords)
+                        x = json.getDouble("x").toFloat()
+                        y = json.getDouble("y").toFloat()
+
+                        closeTextBox()
+
+                        highlight_Controller(x, y, this@FloatingService)
+                    }
+                }
+
             }
         }
     }
@@ -150,8 +162,6 @@ class FloatingService : Service() {
         // 데이터 스트리밍
         streamManager= LlmLogStreaming{ newLogs->
             Handler(Looper.getMainLooper()).post {
-                Log.d("LOG_DEBUG", "신규 데이터 스트리밍 수신 성공! 개수: ${newLogs.size}")
-
                 val combined = (newLogs + LogList.responses.value).distinctBy { it.question }
                 LogList.responses.value = combined
 
@@ -312,6 +322,7 @@ class FloatingService : Service() {
         val askMenu = menuView!!.findViewById<TextView>(R.id.askMenu)
         val recentMenu = menuView!!.findViewById<TextView>(R.id.recentQuestion)
 
+
         recentMenu.text =
             when(lang) {
                 "English" -> "Recent"
@@ -323,14 +334,31 @@ class FloatingService : Service() {
 
         recentMenu.setOnClickListener {
             closeTextBox()
+            recentLog = null
+            CoroutineScope(Dispatchers.Main).launch {
+                try {
+                    val log: LlmlogResponse? = showRecentQ()
+                    recentLog = log
+                    recentLog?.let { log ->
+                        showTextBox(
+                            mode = "HighLight",
+                            shouldCloseMenu = true,
+                            message = """
+📌 ${log.question}
 
-            showTextBox(
-                mode = "TEXT",
-                shouldCloseMenu = true,
-                message = "최근 질문 결과",
-                x = 500f,
-                y = 1000f
-            )
+────────────
+
+💡 ${log.answer}
+""".trimIndent(),
+                            x = 500f,
+                            y = 1000f
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.e("recentLog", "에러 발생", e)
+                }
+
+            }
         }
 
         askMenu?.text =
@@ -364,7 +392,16 @@ class FloatingService : Service() {
                     captureOnceAll()
 
                 } else {  // 권한이 없으면 요청 메시지
-                    Toast.makeText(this, "권한을 허용해주세요.", Toast.LENGTH_LONG).show()
+                    val lang = getCurrentLanguage()
+                    ToastMessage =
+                        when (lang) {
+                            "English" -> "Allow permission."
+                            "日本語" -> "権限を許可してください。"
+                            "中文" -> "请允许权限。"
+                            "Tiếng Việt"-> "Hãy cho phép quyền hạn."
+                            else -> "권한을 허용하세요."
+                        }
+                    Toast.makeText(this, ToastMessage, Toast.LENGTH_SHORT).show()
                 }
             } else {
                 closeMenu()
@@ -384,16 +421,21 @@ class FloatingService : Service() {
                     captureOnceCrop()
 
                 } else {  // 권한이 없으면 요청 메시지
-                    Toast.makeText(this, "권한을 허용해주세요.", Toast.LENGTH_LONG).show()
+                    ToastMessage =
+                        when (lang) {
+                            "English" -> "Allow permission."
+                            "日本語" -> "権限を許可してください。"
+                            "中文" -> "请允许权限。"
+                            "Tiếng Việt"-> "Hãy cho phép quyền hạn."
+                            else -> "권한을 허용하세요."
+                        }
+                    Toast.makeText(this, ToastMessage, Toast.LENGTH_SHORT).show()
                 }
             } else {
                 closeMenu()
                 captureOnceCrop()
             }
         }
-
-
-
         val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE
 
@@ -450,6 +492,22 @@ class FloatingService : Service() {
             mode = "RECOMMEND",
             shouldCloseMenu = false
         )
+    }
+
+    suspend fun showRecentQ(): LlmlogResponse? {
+        return try {
+            val response = RetrofitClient.api.getLogs(UserSession.userId)
+
+            if (response.isSuccessful && response.body() != null) {
+                response.body()!!.lastOrNull()
+            } else {
+                Log.e("LOG_DEBUG", "${response.code()}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e("LOG_DEBUG", "${e.message}")
+            null
+        }
     }
 
     // LLM 응답 메시지
@@ -526,16 +584,48 @@ class FloatingService : Service() {
             else -> "하이라이트"
         }
 
-        if (x != null && y != null) {
-            btnhighlight.visibility = View.VISIBLE
+        if(mode!= "HighLight"){
+            if (x != null && y != null) {
+                btnhighlight.visibility = View.VISIBLE
 
-            btnhighlight.setOnClickListener {
-                closeMenu()
-                closeTextBox()
-                highlight_Controller(x, y, this@FloatingService)
+                btnhighlight.setOnClickListener {
+                    closeMenu()
+                    closeTextBox()
+                    highlight_Controller(x, y, this@FloatingService)
+                }
+            } else {
+                btnhighlight.visibility = View.GONE
             }
-        } else {
-            btnhighlight.visibility = View.GONE
+        }
+
+        if (mode == "HighLight") {
+            val pkg = MyAccessibilityService.instance?.rootInActiveWindow?.packageName?.toString() ?: ""
+            val log = recentLog
+
+            if (log == null) {
+                closeTextBox()
+                ToastMessage =
+                    when (lang) {
+                        "English" -> "No recent questions."
+                        "日本語" -> "最近の質問はありません。"
+                        "中文" -> "最近没有问题。"
+                        "Tiếng Việt"-> "Không có câu hỏi gần đây."
+                        else -> "최근 질문이 없습니다."
+                    }
+                Toast.makeText(this, ToastMessage, Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            if(log.forgroundApp != pkg) {
+                btnhighlight.visibility = View.GONE
+            }else{
+                btnhighlight.visibility = View.VISIBLE
+                btnhighlight.setOnClickListener {
+                    closeMenu()
+                    closeTextBox()
+                    launchCaptureActivity("HighLight", log.question, pkg)
+                }
+            }
         }
 
         // 추천 질문(RECOMMEND) 내용 세팅 (다국어 적용)
@@ -560,6 +650,7 @@ class FloatingService : Service() {
                 else -> "이전 질문을 보겠습니까?"
             }
         btnHistory.textSize = 18f
+
 
         if (mode == "RECOMMEND") {
             recommendContainer.visibility = View.VISIBLE
@@ -700,6 +791,11 @@ class FloatingService : Service() {
                 buttonContainer.visibility = View.GONE
                 recommendContainer?.visibility = View.VISIBLE
             }
+            "HighLight"->{
+                textContentLayout.visibility = View.VISIBLE
+                buttonContainer.visibility = View.GONE
+                recommendContainer?.visibility = View.GONE
+            }
             else -> { // "TEXT" 모드 (결과를 띄울 때)
                 textContentLayout.visibility = View.VISIBLE
                 buttonContainer.visibility = View.GONE
@@ -772,10 +868,19 @@ class FloatingService : Service() {
         // 추천 질문 리스트 (q1~q4) 클릭 리스너
         val onRecommendClickListener = View.OnClickListener { view ->
             val clickedQuestion = (view as TextView).text.toString()
-            Toast.makeText(this, "'$clickedQuestion' 질문을 전송합니다...", Toast.LENGTH_SHORT).show()
+            ToastMessage =
+                when (lang) {
+                    "English" -> "Send {$clickedQuestion} question..."
+                    "日本語" -> "$clickedQuestion}という質問を送信します···"
+                    "中文" -> "发送 {$clickedQuestion} 问题..."
+                    "Tiếng Việt"-> "Gửi câu hỏi {$clickedQuestion}..."
+                    else -> "{$clickedQuestion} 질문을 전송합니다..."
+                }
+            Toast.makeText(this, ToastMessage, Toast.LENGTH_SHORT).show()
+
             closeTextBox()
             val pkg = MyAccessibilityService.instance?.rootInActiveWindow?.packageName?.toString() ?: ""
-            launchCaptureActivity(clickedQuestion, pkg)
+            launchCaptureActivity("DIRECT", clickedQuestion, pkg)
         }
 
         q1.setOnClickListener(onRecommendClickListener)
@@ -876,8 +981,6 @@ class FloatingService : Service() {
                     if (response.isSuccessful && response.body() != null) {
                         val LogData = response.body()!!
 
-                        LogList.responses.value = LogData
-
                         val logs = LogData.toMutableList()
                         val currentPkg = if (lastTargetPackage.isNotBlank()) lastTargetPackage
                         else MyAccessibilityService.instance?.rootInActiveWindow?.packageName?.toString() ?: ""
@@ -951,7 +1054,7 @@ class FloatingService : Service() {
         val btnMic = searchBarView!!.findViewById<View>(R.id.btn_mic)
         val btnClose = searchBarView!!.findViewById<TextView>(R.id.btn_close_search)
 
-        // --- 언어 설정 확인 (한국어가 아니면 모두 영어 처리) ---
+        // 언어 설정 확인 (한국어가 아니면 모두 영어 처리)
         val lang = getCurrentLanguage()
         val isKorean = (lang == "Korean" || lang == "한국어")
 
@@ -963,7 +1066,6 @@ class FloatingService : Service() {
 
         // 3. 검색 버튼
         btnSendText.text = if (isKorean) "검색" else "Search"
-        // ----------------------------------------------
 
         // 검색 버튼 클릭 시
         btnSendText.setOnClickListener {
@@ -974,14 +1076,14 @@ class FloatingService : Service() {
 
                 closeSearchBar()
                 val pkg = MyAccessibilityService.instance?.rootInActiveWindow?.packageName?.toString() ?: ""
-                launchCaptureActivity(question, pkg)
+                launchCaptureActivity("DIRECT", question, pkg)
             }
         }
 
         btnMic.setOnTouchListener { view, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    val downMsg = if (isKorean) "누른 채로 말씀해 주세요..." else "Speak while holding down..."
+                    val downMsg = if (isKorean) "버튼을 누른 채로 말씀하세요... " else "Speak while holding down..."
                     Toast.makeText(this, downMsg, Toast.LENGTH_SHORT).show()
 
                     btnMic.isPressed = true
@@ -1008,6 +1110,7 @@ class FloatingService : Service() {
                     val pkg = MyAccessibilityService.instance?.rootInActiveWindow?.packageName?.toString() ?: ""
 
                     if (audioFile != null && audioFile.exists()) {
+                        Log.d("VOICE_RESPONSE", "${audioFile}")
                         sendVoiceToServer(audioFile, pkg)
                     }
                     closeSearchBar()
@@ -1036,7 +1139,7 @@ class FloatingService : Service() {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             else
                 WindowManager.LayoutParams.TYPE_PHONE,
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         )
         searchParams.gravity = Gravity.TOP
@@ -1067,7 +1170,7 @@ class FloatingService : Service() {
                     val pkg = MyAccessibilityService.instance?.rootInActiveWindow?.packageName?.toString() ?: ""
                     Log.d("VOICE_RESPONSE", "인식된 질문: $voiceText")
                     // 캡처 실행하여 서버로 전송
-                    launchCaptureActivity(voiceText, pkg)
+                    launchCaptureActivity("DIRECT", voiceText, pkg)
                 } else {
                     Log.e("VOICE_RESPONSE", "서버 에러 발생")
                 }
@@ -1187,7 +1290,16 @@ class FloatingService : Service() {
         val service = MyAccessibilityService.instance
         // 접근성 서비스 확인
         if (service == null) {
-            Toast.makeText(this, "접근성 서비스가 꺼져있어요", Toast.LENGTH_SHORT).show()
+            val lang = getCurrentLanguage()
+            ToastMessage =
+                when (lang) {
+                    "English" -> "The accessibility service is off."
+                    "日本語" -> "アクセシビリティサービスがオフになっています。"
+                    "中文" -> "访问性服务已关闭。"
+                    "Tiếng Việt"-> "Dịch vụ truy cập bị tắt rồi."
+                    else -> "접근성 서비스가 꺼져있어요."
+                }
+            Toast.makeText(this, ToastMessage, Toast.LENGTH_SHORT).show()
             return
         }
         Handler(Looper.getMainLooper()).postDelayed({
@@ -1235,7 +1347,17 @@ class FloatingService : Service() {
     // 오버레이를 실제로 화면 위에 띄우는 함수
     private fun startOverlay(onSelected: (Rect) -> Unit) {
         if (!Settings.canDrawOverlays(this)) {
-            Toast.makeText(this, "오버레이 권한 필요", Toast.LENGTH_SHORT).show()
+            val lang = getCurrentLanguage()
+            ToastMessage =
+                when (lang) {
+                    "English" -> "Overlay rights are required."
+                    "日本語" -> "オーバーレイ権限が必要です。"
+                    "中文" -> "需要覆盖权限。"
+                    "Tiếng Việt"-> "Cần có quyền hạn overlay."
+                    else -> "오버레이 권한이 필요합니다."
+                }
+            Toast.makeText(this, ToastMessage, Toast.LENGTH_SHORT).show()
+
             val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
             startActivity(intent)
             return
@@ -1338,10 +1460,11 @@ class FloatingService : Service() {
     }
 
     // 캡처 액티비티를 실행하는 전용 함수
-    private fun launchCaptureActivity(question: String, pkg: String) {
+    private fun launchCaptureActivity(mode: String,question: String, pkg: String) {
+        closeMenu()
         Handler(Looper.getMainLooper()).postDelayed({
             val intent = Intent(this, CaptureActivity::class.java).apply {
-                putExtra("mode", "DIRECT")
+                putExtra("mode", mode)
                 putExtra("question", question)
                 putExtra("pkg", pkg)
                 putExtra("lang", getCurrentLanguage())

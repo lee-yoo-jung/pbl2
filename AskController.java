@@ -96,6 +96,18 @@ public class AskController {
         // 이미지가 같이 온 경우 프롬프트를 약간 수정하여 이미지도 참고하라고 지시
         boolean hasImage = request.getImageBase64() != null && !request.getImageBase64().isEmpty();
 
+        String InitLang = "Korean";
+        // 선택된 언어를 확인하고, 프롬프트 맨 끝에 해당 언어로만 대답하도록 강제 지시문 추가
+        String targetLang = (request.getLanguage() != null && !request.getLanguage().isEmpty()) ? request.getLanguage() : "한국어";
+
+        // AI가 더 잘 이해할 수 있도록 명칭을 보강
+        String instruction = "";
+        if (targetLang.equals("English")) instruction = "English";
+        else if (targetLang.equals("日本語")) instruction = "Japanese";
+        else if (targetLang.equals("中文")) instruction = "Chinese";
+        else if (targetLang.equals("Tiếng Việt")) instruction = "Vietnamese";
+        else instruction = "Korean";
+
         if ("crop".equals(request.getMode())) {
             if (hasImage) {
                 finalPrompt = "다음 첨부된 화면 일부 이미지와 OCR 텍스트를 함께 분석하여, 화면의 구성내용을 파악하여 요약해주세요.\n" +
@@ -107,10 +119,25 @@ public class AskController {
                         "(OCR 텍스트: " + request.getQuestion() + ")\n" +
                         "주의사항:\n" +
                         "설명을 받는 대상은 디지털 취약계층입니다. 노인, 외국인, 어린이 등이 이해하기 쉬운 단어를 사용하세요.\n" +
-                        "별표(*)나 우물 정(#) 같은 특수문자를 사용하여 단어를 강조하지 마세요. 대괄호([, ])를 사용하여 단어를 강조하고, 나머지 문장은 마크다운 기호 없이 평문으로만 대답하세요.\n" +
+                        "별표(*)나 우물 정(#) 같은 특수문자를 사용하여 단어를 강조하지 마세요. 대괄호([, ])를 사용하여 인식된 한국어 단어를 강조하고, 나머지 문장은 마크다운 기호 없이 평문으로만 대답하세요.\n " +
+                        "만약 원본 입력 언어가 한국어가 아니라면, 대괄호 안에는 강조하려는 언어인 [" + InitLang + "] "+ InitLang +"단어를 적고, 그 바로 뒤 괄호 (" + instruction + ") 안에는 입력받았던 원본 언어로 번역된" + instruction +"언어 를 적으세요."+
+                        "[출력 예시 (Target: Korean)] {\"question\": \"[예매]버튼을 누르세요.\"}\n\n" +
+                        "[출력 예시 (Target: Chinese)] {\"question\": \"请按 [예매](预售) 按钮。.\"}\n\n" +
+                        "[출력 예시 (Target: Japanese)] {\"question\": \"[예매](予約) ボタンを押してください。\"}\n\n" +
+                        "[출력 예시 (Target: Vietnamese)] {\"question\": \"[예매](Đặt vé) Hãy nhấn nút.\"}\n\n" +
+                        "[출력 예시 (Target: English)] {\"question\": \"Press the [예매](Reservation) button.\"}"+
+                        "[한국어 단어](그 한국어 단어를 타겟 외국어로 번역한 단어)-> 예시: 한국어 단어가 '날씨'이고 타겟 언어가 영어라면 [날씨](Weather) 가 되어야 합니다. [Weather](날씨)가 아닙니다. 반드시 대괄호 안이 한국어여야 합니다."+
                         "출력에 말머리로 '서술식 요약'과 '개조식 상세'라는 단어를 사용하지마세요.\n" +
                         "이미지 속에 표가 존재한다면 OCR 텍스트는 정확하지 않을 수 있으니 이미지를 기준으로 설명해주세요.\n" +
-                        "위험 분석: OCR 텍스트에서 보이스피싱, 금융사기, 개인정보 요구 등 위험이 감지되면 마지막에 반드시 다음 문구를 추가하세요: “주의: 사기 또는 위험 상황일 수 있으니 확인 후 진행해주세요.”";
+                        "위험 분석: OCR 텍스트에서 보이스피싱, 금융사기, 개인정보 요구 등 위험이 감지되면 맨 앞에 반드시 다음 문구를 추가하세요: \"🚨 주의 🚨 : 사기 또는 위험 상황일 수 있으니 확인 후 진행해주세요. \"\n" +
+                        "결제, 결제하기, 구매, 구매하기송금, 이체, 보내기,충전, 충전하기, 후원, 후원하기, 기부, 간편결제, 원클릭 결제 등 결제와 관련된 단어가 감지되면 맨 앞에 반드시 다음 문구를 추가하세요. “ \"🚨 주의 🚨 : 의도치 않은 결제일 수 있으니 확인 후 진행해주세요. \"\n"+
+                        "인증, 인증하기, 본인인증비밀번호 입력, PIN 번호, 패스워드지문 인식, Face ID, 생체 인증 간편결제, 원클릭 결제 등 인증 및 간편 결제 관련된 단어가 감지되면 맨 앞에 반드시 다음 문구를 추가하세요. “  \"🚨 주의 🚨 : 핵심정보 노출일 수 있으니 확인 후 진행해주세요. \"\n"+
+                        "만약 감지된 사용자의 언어가 한국어가 아니라면(예: 영어, 베트남어 등), 위의 '한국어 기준 기본 문구'를 감지된 사용자의 언어로 정확하게 번역하여 문장 맨 앞에 결합하세요."+
+                        "예시: 영어인 경우 \"🚨 Caution 🚨 : This could be an actual monetary transaction, please verify before proceeding. \" 와 같이 해당 언어에 맞게 자연스럽게 번역해야 합니다."+
+                        "English: \"🚨 Caution 🚨 : This could be an actual monetary transaction, please verify before proceeding. "+
+                        "Japanese: \"🚨 注意 🚨 : 実際の決済が発生する可能性があるため、確認の上進めてください。 "+
+                        "Chinese: \"🚨 注意 🚨 : 这 可能是 实际 扣款 情况，请 确认 后 再 继续。"+
+                        "Vietnamese: \"🚨 Chú ý 🚨 : Đây có thể là tình huống thanh toán thực tế, vui lòng kiểm tra kỹ trước khi tiếp tục. ";
             } else {
                 finalPrompt = "다음 첨부된 OCR 텍스트를 사용하여, 화면의 구성내용을 파악하여 요약해주세요.\n" +
                         "1.서술식 요약을 사용합니다. 핵심 내용을 한 줄의 자연스러운 문장으로 먼저 적으세요.\n" +
@@ -122,8 +149,23 @@ public class AskController {
                         "주의사항:\n" +
                         "설명을 받는 대상은 디지털 취약계층입니다. 노인, 외국인, 어린이 등이 이해하기 쉬운 단어를 사용하세요.\n" +
                         "별표(*)나 우물 정(#) 같은 특수문자를 사용하여 단어를 강조하지 마세요. 대괄호([, ])를 사용하여 단어를 강조하고, 나머지 문장은 마크다운 기호 없이 평문으로만 대답하세요.\n" +
+                        "만약 원본 입력 언어가 한국어가 아니라면, 대괄호 안에는 강조하려는 언어인 [" + InitLang + "] "+ InitLang +"단어를 적고, 그 바로 뒤 괄호 (" + instruction + ") 안에는 입력받았던 원본 언어로 번역된" + instruction +"언어 를 적으세요."+
+                        "[출력 예시 (Target: Korean)] {\"question\": \"[예매]버튼을 누르세요.\"}\n\n" +
+                        "[출력 예시 (Target: Chinese)] {\"question\": \"请按 [예매](预售) 按钮。.\"}\n\n" +
+                        "[출력 예시 (Target: Japanese)] {\"question\": \"[예매](予約) ボタンを押してください。\"}\n\n" +
+                        "[출력 예시 (Target: Vietnamese)] {\"question\": \"[예매](Đặt vé) Hãy nhấn nút.\"}\n\n" +
+                        "[출력 예시 (Target: English)] {\"question\": \"Press the [예매](Reservation) button.\"}"+
+                        "[한국어 단어](그 한국어 단어를 타겟 외국어로 번역한 단어)-> 예시: 한국어 단어가 '날씨'이고 타겟 언어가 영어라면 [날씨](Weather) 가 되어야 합니다. [Weather](날씨)가 아닙니다. 반드시 대괄호 안이 한국어여야 합니다."+
                         "출력에 말머리로 '서술식 요약'과 '개조식 상세'라는 단어를 사용하지마세요.\n" +
-                        "위험 분석: 보이스피싱, 사기 등이 의심될 경우 마지막에 반드시 다음 문구를 추가하세요: “주의: 사기 또는 위험 상황일 수 있으니 확인 후 진행해주세요.”";
+                        "위험 분석: OCR 텍스트에서 보이스피싱, 금융사기, 개인정보 요구 등 위험이 감지되면 맨 앞에 반드시 다음 문구를 추가하세요: \"🚨 주의 🚨 : 사기 또는 위험 상황일 수 있으니 확인 후 진행해주세요. \"\n" +
+                        "결제, 결제하기, 구매, 구매하기송금, 이체, 보내기,충전, 충전하기, 후원, 후원하기, 기부, 간편결제, 원클릭 결제 등 결제와 관련된 단어가 감지되면 맨 앞에 반드시 다음 문구를 추가하세요. “ \"🚨 주의 🚨 : 의도치 않은 결제일 수 있으니 확인 후 진행해주세요. \"\n"+
+                        "인증, 인증하기, 본인인증비밀번호 입력, PIN 번호, 패스워드지문 인식, Face ID, 생체 인증 간편결제, 원클릭 결제 등 인증 및 간편 결제 관련된 단어가 감지되면 맨 앞에 반드시 다음 문구를 추가하세요. “  \"🚨 주의 🚨 : 핵심정보 노출일 수 있으니 확인 후 진행해주세요. \"\n"+
+                        "만약 감지된 사용자의 언어가 한국어가 아니라면(예: 영어, 베트남어 등), 위의 '한국어 기준 기본 문구'를 감지된 사용자의 언어로 정확하게 번역하여 문장 맨 앞에 결합하세요."+
+                        "예시: 영어인 경우 \"🚨 Caution 🚨 : This could be an actual monetary transaction, please verify before proceeding. \" 와 같이 해당 언어에 맞게 자연스럽게 번역해야 합니다."+
+                        "English: \"🚨 Caution 🚨 : This could be an actual monetary transaction, please verify before proceeding. "+
+                        "Japanese: \"🚨 注意 🚨 : 実際の決済が発生する可能性があるため、確認の上進めてください。 "+
+                        "Chinese: \"🚨 注意 🚨 : 这 可能是 实际 扣款 情况，请 确认 后 再 继续。"+
+                        "Vietnamese: \"🚨 Chú ý 🚨 : Đây có thể là tình huống thanh toán thực tế, vui lòng kiểm tra kỹ trước khi tiếp tục. ";
             }
         } else if ("direct".equals(request.getMode())) {
             String appHint = "";
@@ -142,7 +184,16 @@ public class AskController {
                     "서술식 요약과 개조식 상세 내용을 2줄 띄워서 구분해주세요. 개조식 상세 내용을 각 문장마다 한 줄씩 띄워서 출력해주세요.\n" +
                     "주의사항:\n" +
                     "설명을 받는 대상은 디지털 취약계층입니다. 노인, 외국인, 어린이 등이 이해하기 쉬운 단어를 사용하세요.\n" +
-                    "별표(*)나 우물 정(#) 같은 특수문자를 사용하여 단어를 강조하지 마세요. 대괄호([, ])를 사용하여 단어를 강조하고, 나머지 문장은 마크다운 기호 없이 평문으로만 대답하세요.\n";
+                    "별표(*)나 우물 정(#) 같은 특수문자를 사용하여 단어를 강조하지 마세요. 대괄호([, ])를 사용하여 단어를 강조하고, 나머지 문장은 마크다운 기호 없이 평문으로만 대답하세요.\n"+
+                    "만약 원본 입력 언어가 한국어가 아니라면, 대괄호 안에는 강조하려는 언어인 [" + InitLang + "] "+ InitLang +"단어를 적고, 그 바로 뒤 괄호 (" + instruction + ") 안에는 입력받았던 원본 언어로 번역된" + instruction +"언어 를 적으세요."+
+                    "[출력 예시 (Target: Korean)] {\"question\": \"[예매]버튼을 누르세요.\"}\n\n" +
+                    "[출력 예시 (Target: Chinese)] {\"question\": \"请按 [예매](预售) 按钮。.\"}\n\n" +
+                    "[출력 예시 (Target: Japanese)] {\"question\": \"[예매](予約) ボタンを押してください。\"}\n\n" +
+                    "[출력 예시 (Target: Vietnamese)] {\"question\": \"[예매](Đặt vé) Hãy nhấn nút.\"}\n\n" +
+                    "[출력 예시 (Target: English)] {\"question\": \"Press the [예매](Reservation) button.\"}"+
+                    "[한국어 단어](그 한국어 단어를 타겟 외국어로 번역한 단어)-> 예시: 한국어 단어가 '날씨'이고 타겟 언어가 영어라면 [날씨](Weather) 가 되어야 합니다. [Weather](날씨)가 아닙니다. 반드시 대괄호 안이 한국어여야 합니다."+
+                    "출력에 말머리로 '서술식 요약'과 '개조식 상세'라는 단어를 사용하지마세요.\n" +
+                    "이미지 속에 표가 존재한다면 OCR 텍스트는 정확하지 않을 수 있으니 이미지를 기준으로 설명해주세요.\n" ;
         } else if ("guide".equals(request.getMode())) {
             finalPrompt = "첨부된 현재 모바일 앱 화면 이미지와 아래 지시사항을 함께 분석하라.\n" +
 
@@ -199,9 +250,25 @@ public class AskController {
                         "주의사항:\n" +
                         "설명을 받는 대상은 디지털 취약계층입니다. 노인, 외국인, 어린이 등이 이해하기 쉬운 단어를 사용하세요.\n" +
                         "별표(*)나 우물 정(#) 같은 특수문자를 사용하여 단어를 강조하지 마세요. 대괄호([, ])를 사용하여 단어를 강조하고, 나머지 문장은 마크다운 기호 없이 평문으로만 대답하세요.\n" +
+                        "만약 원본 입력 언어가 한국어가 아니라면, 대괄호 안에는 강조하려는 언어인 [" + InitLang + "] "+ InitLang +"단어를 적고, 그 바로 뒤 괄호 (" + instruction + ") 안에는 입력받았던 원본 언어로 번역된" + instruction +"언어 를 적으세요."+
+                        "[출력 예시 (Target: Korean)] {\"question\": \"[예매]버튼을 누르세요.\"}\n\n" +
+                        "[출력 예시 (Target: Chinese)] {\"question\": \"请按 [예매](预售) 按钮。.\"}\n\n" +
+                        "[출력 예시 (Target: Japanese)] {\"question\": \"[예매](予約) ボタンを押してください。\"}\n\n" +
+                        "[출력 예시 (Target: Vietnamese)] {\"question\": \"[예매](Đặt vé) Hãy nhấn nút.\"}\n\n" +
+                        "[출력 예시 (Target: English)] {\"question\": \"Press the [예매](Reservation) button.\"}"+
+                        "[한국어 단어](그 한국어 단어를 타겟 외국어로 번역한 단어)-> 예시: 한국어 단어가 '날씨'이고 타겟 언어가 영어라면 [날씨](Weather) 가 되어야 합니다. [Weather](날씨)가 아닙니다. 반드시 대괄호 안이 한국어여야 합니다."+
                         "출력에 말머리로 '서술식 요약'과 '개조식 상세'라는 단어를 사용하지마세요.\n" +
                         "이미지 속에 표가 존재한다면 OCR 텍스트는 정확하지 않을 수 있으니 이미지를 기준으로 설명해주세요.\n" +
-                        "위험 분석: 보이스피싱, 금융사기 등 위험이 판단될 경우 마지막에 반드시 다음 문구를 추가하세요: “주의: 사기 또는 위험 상황일 수 있으니 확인 후 진행해주세요.”";
+                        "위험 분석: OCR 텍스트에서 보이스피싱, 금융사기, 개인정보 요구 등 위험이 감지되면 맨 앞에 반드시 다음 문구를 추가하세요: \"🚨 주의 🚨 : 사기 또는 위험 상황일 수 있으니 확인 후 진행해주세요. \"\n" +
+                        "결제, 결제하기, 구매, 구매하기송금, 이체, 보내기,충전, 충전하기, 후원, 후원하기, 기부, 간편결제, 원클릭 결제 등 결제와 관련된 단어가 감지되면 맨 앞에 반드시 다음 문구를 추가하세요. “ \"🚨 주의 🚨 : 의도치 않은 결제일 수 있으니 확인 후 진행해주세요. \"\n"+
+                        "인증, 인증하기, 본인인증비밀번호 입력, PIN 번호, 패스워드지문 인식, Face ID, 생체 인증 간편결제, 원클릭 결제 등 인증 및 간편 결제 관련된 단어가 감지되면 맨 앞에 반드시 다음 문구를 추가하세요. “  \"🚨 주의 🚨 : 핵심정보 노출일 수 있으니 확인 후 진행해주세요. \"\n"+
+                        "만약 감지된 사용자의 언어가 한국어가 아니라면(예: 영어, 베트남어 등), 위의 '한국어 기준 기본 문구'를 감지된 사용자의 언어로 정확하게 번역하여 문장 맨 앞에 결합하세요."+
+                        "예시: 영어인 경우 \"🚨 Caution 🚨 : This could be an actual monetary transaction, please verify before proceeding. \" 와 같이 해당 언어에 맞게 자연스럽게 번역해야 합니다."+
+                        "English: \"🚨 Caution 🚨 : This could be an actual monetary transaction, please verify before proceeding. "+
+                        "Japanese: \"🚨 注意 🚨 : 実際の決済が発生する可能性があるため、確認の上進めてください。 "+
+                        "Chinese: \"🚨 注意 🚨 : 这 可能是 实际 扣款 情况，请 确认 后 再 继续。"+
+                        "Vietnamese: \"🚨 Chú ý 🚨 : Đây có thể là tình huống thanh toán thực tế, vui lòng kiểm tra kỹ trước khi tiếp tục. ";
+
             } else {
                 finalPrompt = "다음 첨부된 OCR 텍스트를 사용하여, 화면을 전체적으로 분석하세요.\n" +
                         "1.서술식 요약을 사용합니다. 현재 화면이 무엇인지 '~앱의 ~한 화면입니다.' 형태로 한 줄로 요약하세요.\n" +
@@ -212,53 +279,55 @@ public class AskController {
                         "주의사항:\n" +
                         "설명을 받는 대상은 디지털 취약계층입니다. 노인, 외국인, 어린이 등이 이해하기 쉬운 단어를 사용하세요.\n" +
                         "출력에 말머리로 '서술식 요약'과 '개조식 상세'라는 단어를 사용하지마세요.\n" +
-                        "별표(*)나 우물 정(#) 같은 특수문자를 사용하여 단어를 강조하지 마세요. 대괄호([, ])를 사용하여 단어를 강조하고, 나머지 문장은 마크다운 기호 없이 평문으로만 대답하세요.\n" +
-                        "위험 분석: 보이스피싱, 금융사기 등 위험이 판단될 경우 마지막에 반드시 다음 문구를 추가하세요: “주의: 사기 또는 위험 상황일 수 있으니 확인 후 진행해주세요.”";
+                        "만약 원본 입력 언어가 한국어가 아니라면, 대괄호 안에는 강조하려는 언어인 [" + InitLang + "] "+ InitLang +"단어를 적고, 그 바로 뒤 괄호 (" + instruction + ") 안에는 입력받았던 원본 언어로 번역된" + instruction +"언어 를 적으세요."+
+                        "[출력 예시 (Target: Korean)] {\"question\": \"[예매]버튼을 누르세요.\"}\n\n" +
+                        "[출력 예시 (Target: Chinese)] {\"question\": \"请按 [예매](预售) 按钮。.\"}\n\n" +
+                        "[출력 예시 (Target: Japanese)] {\"question\": \"[예매](予約) ボタンを押してください。\"}\n\n" +
+                        "[출력 예시 (Target: Vietnamese)] {\"question\": \"[예매](Đặt vé) Hãy nhấn nút.\"}\n\n" +
+                        "[출력 예시 (Target: English)] {\"question\": \"Press the [예매](Reservation) button.\"}"+
+                        "[한국어 단어](그 한국어 단어를 타겟 외국어로 번역한 단어)-> 예시: 한국어 단어가 '날씨'이고 타겟 언어가 영어라면 [날씨](Weather) 가 되어야 합니다. [Weather](날씨)가 아닙니다. 반드시 대괄호 안이 한국어여야 합니다."+
+                        "출력에 말머리로 '서술식 요약'과 '개조식 상세'라는 단어를 사용하지마세요.\n" +
+                        "이미지 속에 표가 존재한다면 OCR 텍스트는 정확하지 않을 수 있으니 이미지를 기준으로 설명해주세요.\n" +
+                        "위험 분석: OCR 텍스트에서 보이스피싱, 금융사기, 개인정보 요구 등 위험이 감지되면 맨 앞에 반드시 다음 문구를 추가하세요: \"🚨 주의 🚨 : 사기 또는 위험 상황일 수 있으니 확인 후 진행해주세요. \"\n" +
+                        "결제, 결제하기, 구매, 구매하기송금, 이체, 보내기,충전, 충전하기, 후원, 후원하기, 기부, 간편결제, 원클릭 결제 등 결제와 관련된 단어가 감지되면 맨 앞에 반드시 다음 문구를 추가하세요. “ \"🚨 주의 🚨 : 의도치 않은 결제일 수 있으니 확인 후 진행해주세요. \"\n"+
+                        "인증, 인증하기, 본인인증비밀번호 입력, PIN 번호, 패스워드지문 인식, Face ID, 생체 인증 간편결제, 원클릭 결제 등 인증 및 간편 결제 관련된 단어가 감지되면 맨 앞에 반드시 다음 문구를 추가하세요. “  \"🚨 주의 🚨 : 핵심정보 노출일 수 있으니 확인 후 진행해주세요. \"\n"+
+                        "만약 감지된 사용자의 언어가 한국어가 아니라면(예: 영어, 베트남어 등), 위의 '한국어 기준 기본 문구'를 감지된 사용자의 언어로 정확하게 번역하여 문장 맨 앞에 결합하세요."+
+                        "예시: 영어인 경우 \"🚨 Caution 🚨 : This could be an actual monetary transaction, please verify before proceeding. \" 와 같이 해당 언어에 맞게 자연스럽게 번역해야 합니다."+
+                        "English: \"🚨 Caution 🚨 : This could be an actual monetary transaction, please verify before proceeding. "+
+                        "Japanese: \"🚨 注意 🚨 : 実際の決済が発生する可能性があるため、確認の上進めてください。 "+
+                        "Chinese: \"🚨 注意 🚨 : 这 可能是 实际 扣款 情况，请 确认 后 再 继续。"+
+                        "Vietnamese: \"🚨 Chú ý 🚨 : Đây có thể là tình huống thanh toán thực tế, vui lòng kiểm tra kỹ trước khi tiếp tục. ";
             }
         }
 
-        // 선택된 언어를 확인하고, 프롬프트 맨 끝에 해당 언어로만 대답하도록 강제 지시문 추가
-        String targetLang = (request.getLanguage() != null && !request.getLanguage().isEmpty()) ? request.getLanguage() : "한국어";
-
-        // AI가 더 잘 이해할 수 있도록 명칭을 보강
-        String instruction = "";
-        if (targetLang.equals("English")) instruction = "English";
-        else if (targetLang.equals("日本語")) instruction = "Japanese";
-        else if (targetLang.equals("中文")) instruction = "Chinese";
-        else if (targetLang.equals("Tiếng Việt") || targetLang.equals("Vietnamese")) instruction = "Vietnamese";
-        else instruction = "Korean";
+        List<String> foreign = List.of("English", "Japanese","Chinese","Vietnamese");
 
         finalPrompt = finalPrompt + "\n\n" +
-                "IMPORTANT LANGUAGE RULE:\n" +
-                "- You MUST write ALL explanations, descriptions, and instructions in " + instruction + ".\n" +
-                "- Do NOT use Korean except for UI element names visible on the screen.\n" +
-                "- UI element names must remain exactly as shown and be wrapped in square brackets.\n" +
-                "- Example (English): Press [가입].\n" +
-                "- Example (Japanese): [가입]を押してください。\n" +
-                "- Example (Chinese): 请点击[가입]。\n" +
-                "- Example (Vietnamese): Hãy nhấn [가입].\n" +
-                "- If you output Korean outside of square brackets, your answer is incorrect.";
-
-        if (!instruction.equals("Korean")) {
-            finalPrompt += "\n\n" +
-                    "FINAL CHECK:\n" +
-                    "Translate your entire answer into " + instruction + ".\n" +
-                    "Only keep Korean text inside square brackets when it is a UI element name.\n";
-        }
+                "[SYSTEM RULE: You must provide the entire response in " + instruction + " ONLY. " +
+                "Do not use any other languages. This is a strict requirement.] +" +
+                "You MUST translate and write the 'question' value ONLY in \" + instruction + \".\\n\" "+
+                "Content inside square brackets `[...]` MUST ONLY BE WRITTRN IN KOREAN.\n"+
+                "Content inside square brackets `[...]` MUST ONLY be written in"+InitLang +".\n"+
+                "NEVER WRITE NON-KOREAN characters inside square brackets `[...]`.\n"+
+                "Content inside parentheses `(...)` MUST ONLY be written in the "+foreign +".\n" +
+                "Strictly adhere to the format: ["+InitLang +"]("+foreign +"). Never swap or invert them."+
+                "[Example for rule compliance]\n" +
+                "If " + InitLang + " is '날씨' and target language is '" + instruction + "', you must output: [날씨](Translated Word)\n" +
+                "Never output: (Translated Word)[날씨] or [Translated Word](날씨).";
 
         try {
-            // 3. 제미나이에게 보낼 JSON을 안전하게 만들기 (ObjectMapper 사용)
+            //JSON 만들기
             ObjectMapper mapper = new ObjectMapper();
             ObjectNode rootNode = mapper.createObjectNode();
             ArrayNode contentsNode = rootNode.putArray("contents");
             ObjectNode contentItemNode = contentsNode.addObject();
             ArrayNode partsNode = contentItemNode.putArray("parts");
 
-            // 첫 번째 파트: 텍스트 프롬프트 넣기
+            //  텍스트 프롬프트 넣기
             ObjectNode textPart = partsNode.addObject();
             textPart.put("text", finalPrompt);
 
-            // 두 번째 파트: 이미지가 있다면 이미지 데이터(Base64) 추가하기
+            // 이미지가 있다면 이미지 데이터(Base64) 추가하기
             if (hasImage) {
                 ObjectNode imagePart = partsNode.addObject();
                 ObjectNode inlineData = imagePart.putObject("inline_data");
@@ -272,12 +341,12 @@ public class AskController {
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<String> entity = new HttpEntity<>(requestBody, headers);
 
-            // 4. 제미나이 API 호출
+            // 제미나이 API 호출
             ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
 
             JsonNode root = mapper.readTree(response.getBody());
 
-            // 5. 응답 텍스트 추출
+            // 응답 텍스트 추출
             String text = root
                     .path("candidates").get(0)
                     .path("content")
@@ -286,13 +355,15 @@ public class AskController {
                     .asText();
 
             // 6. DB 저장
-            llmService.saveLog(
-                    request.getUserId(),
-                    request.getPackageName(),
-                    request.getQuestion(),
-                    text,
-                    request.getMode()
-            );
+            if (text != null && !text.trim().isEmpty()) {
+                llmService.saveLog(
+                        request.getUserId(),
+                        request.getPackageName(),
+                        request.getQuestion(),
+                        text,
+                        request.getMode()
+                );
+            }
             return Map.of("answer", text);
 
         } catch (Exception e) {
@@ -304,14 +375,13 @@ public class AskController {
 
     // 음성인식 STT
     @PostMapping("/api/gemini/analyze-voice")
-    public ResponseEntity<String> analyzeVoice(
+    public ResponseEntity<?> analyzeVoice(
             @RequestParam("audioFile") MultipartFile audioFile,
             @RequestParam("currentAppPkg") String currentAppPkg) {
 
         if (audioFile == null || audioFile.isEmpty()) {
             return ResponseEntity.status(400).body("오디오 파일이 유효하지 않습니다.");
         }
-
         try {
             String myRealKey = apiKey;
             String voiceUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=" + myRealKey;
@@ -321,18 +391,31 @@ public class AskController {
             String base64Audio = Base64.getEncoder().encodeToString(audioBytes);
 
             // 목소리 입력 LLM 프롬포트
-            String promptText =
-                    "{\\n" +
-                    "  \\\"question\\\": \\\"음성에서 인식한 한국어 내용\\\",\\n" +
-                    "  \\\"actionDescription\\\": \\\"O\\\",\\n" +
-                    "  \\\"targetButton\\\": \\\"하이라이트 해야 할 버튼 이름\\\",\\n" +
-                    "  \\\"coordinateX\\\": 540,\\n" +
-                    "  \\\"coordinateY\\\": 1280\\n" +
-                    "}";
+            String promptText = """ 
+            사용자의 음성을 인식하세요.
+
+            - 지원언어:
+            English
+            日本語
+            中文
+            Tiếng Việt
+            한국어
+
+
+            규칙:
+            1. 오디오에서 사용자가 말한 언어를 자동으로 감지하세요.
+            2. 'question' 필드에는 음성에서 인식한 내용을 사용자가 말한 언어의 고유 문자(예: 영어면 알파벳, 베트남어면 베트남 문자 등) 원문 그대로 작성하세요.
+            3. 절대 들리는 소리를 한글(한국어)로 받아적거나 음차(음독)하지 마세요. (예: 'Hello'를 '헬로우'나 '안녕하세요'로 적으면 절대 안 됩니다. 반드시 'Hello'로 적으세요.)
+            4. 절대 다른 언어로 번역하지 마세요.
+            5. 마크다운 기호 없이 오직 JSON만 반환하세요.
+
+            출력 형식"{\\n" + "  \\\"question\\\": \\\"음성에서 인식한 다국어 원문\\\",\\n" + "}
+            """;
 
             // JSON 맵 데이터 구축
             Map<String, Object> inlineData = new HashMap<>();
-            inlineData.put("mimeType", "audio/mp3");
+            String mimeType = audioFile.getContentType() != null ? audioFile.getContentType() : "audio/mp3";
+            inlineData.put("mimeType", mimeType);
             inlineData.put("data", base64Audio);
 
             Map<String, Object> audioPart = new HashMap<>();
@@ -371,37 +454,17 @@ public class AskController {
                     .path("text")
                     .asText();
 
-            textResult = textResult.replace("```json", "").replace("```", "").replace("\\\"", "\"").trim();
+            textResult = textResult.replaceAll("(?s)^```(?:json)?\\s*|\\s*```$", "").trim();
 
-            String finalCleanJson = textResult;
-            try {
-                com.fasterxml.jackson.databind.JsonNode cleanNode = mapper.readTree(textResult);
-                String userSpeech = "";
-                if (cleanNode.has("question")) userSpeech = cleanNode.get("question").asText();
-                else if (cleanNode.has("sttText")) userSpeech = cleanNode.get("sttText").asText();
-                else if (cleanNode.has("text")) userSpeech = cleanNode.get("text").asText();
+            JsonNode json = mapper.readTree(textResult);
+            String question = json.path("question").asText();
 
-                String actionDesc = cleanNode.path("actionDescription").asText();
-                String targetBtn = cleanNode.path("targetButton").asText();
-                int x = cleanNode.path("coordinateX").asInt(540);
-                int y = cleanNode.path("coordinateY").asInt(1280);
-
-                finalCleanJson = String.format(
-                        "{\"question\":\"%s\",\"actionDescription\":\"%s\",\"targetButton\":\"%s\",\"coordinateX\":%d,\"coordinateY\":%d}",
-                        userSpeech.replace("\"", "\\\""),
-                        actionDesc.replace("\"", "\\\""),
-                        targetBtn.replace("\"", "\\\""),
-                        x, y
-                );
-            } catch (Exception jsonEx) {
-                System.err.println(jsonEx.getMessage());
-            }
-
-            System.out.println(finalCleanJson);
+            Map<String, String> finalResponse = new HashMap<>();
+            finalResponse.put("question", question);
 
             return ResponseEntity.ok()
-                    .contentType(org.springframework.http.MediaType.valueOf("text/plain;charset=UTF-8"))
-                    .body(finalCleanJson);
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(finalResponse);
 
         } catch (Exception e) {
             e.printStackTrace();
